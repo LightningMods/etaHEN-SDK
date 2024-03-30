@@ -13,4 +13,4 @@ include_directories(SYSTEM "${D_PS5SDK}/include")
 
 add_subdirectory(libhijacker)
 add_subdirectory(libNidResolver)
-add_subdirectory(hwinfo_sample)
+add_subdirectory(ELF_samples/hwinfo)

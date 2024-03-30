@@ -64,7 +64,7 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		printf(tempBuf, "S/N: %s\n", hwbuf);
+		sprintf(tempBuf, "S/N: %s\n", hwbuf);
 		//sprintf(tempBuf, "S/N: CENSORED FOR DEMO\n", hwbuf);
 		strcat(s, tempBuf);
 	}

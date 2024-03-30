@@ -6,7 +6,7 @@
 
 cmake_minimum_required (VERSION 3.20)
 
-set(basename "homebrew")
+set(basename "hwinfo")
 project(${basename} C CXX ASM)
 
 # Language Standard Defaults

@@ -20,4 +20,4 @@ add_subdirectory(ELF_samples/http2)
 add_subdirectory(ELF_samples/list_files)
 
 add_subdirectory(Plugin_samples/utility_daemon)
-add_subdirectory(Plugin_samples/illusion_cheats)
+add_subdirectory(Plugin_samples/Illusion_cheats)

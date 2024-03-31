@@ -42,8 +42,8 @@ jobs:
 
     - name: Build SDK
       working-directory: ${{ env.PS5SDK }}
-      run: bash ./build.sh
-           ls -l Plugin_samples/
+      run:  ls -l Plugin_samples/
+            bash ./build.sh
 
     - name: Build etaHEN-SDK-Binaries
       run: bash ./build.sh

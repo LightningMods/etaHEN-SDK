@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.20)
 
-project("etaHEN-ELF")
+project("etaHEN-SDK")
 
 set(PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_ROOT}/bin)
@@ -14,3 +14,9 @@ include_directories(SYSTEM "${D_PS5SDK}/include")
 add_subdirectory(libhijacker)
 add_subdirectory(libNidResolver)
 add_subdirectory(ELF_samples/hwinfo)
+add_subdirectory(ELF_samples/tcp_echo_server)
+add_subdirectory(ELF_samples/klog_printf)
+add_subdirectory(ELF_samples/http2)
+
+add_subdirectory(Plugin_samples/utility_daemon)
+add_subdirectory(Plugin_samples/illusion_cheats)

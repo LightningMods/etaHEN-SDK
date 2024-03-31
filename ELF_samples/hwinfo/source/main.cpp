@@ -1,3 +1,19 @@
+/* Copyright (C) 2024 LM & John Törnblom
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation; either version 3, or (at your option) any
+later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; see the file COPYING. If not, see
+<http://www.gnu.org/licenses/>.  */
+
 #include <stdint.h>
 #include <stdarg.h>
 #include <string.h>
@@ -14,23 +30,6 @@ extern "C"
 	int sceKernelGetSocSensorTemperature(int, int *);
 }
 
-void notify(const char *text, ...)
-{
-	OrbisNotificationRequest noti_buffer;
-
-	va_list args;
-	va_start(args, text);
-	vsprintf(noti_buffer.message, text, args);
-	va_end(args);
-
-	noti_buffer.type = 0;
-	noti_buffer.unk3 = 0;
-	noti_buffer.use_icon_image_uri = 1;
-	noti_buffer.target_id = -1;
-	strcpy(noti_buffer.uri, "cxml://psnotification/tex_icon_system");
-
-	sceKernelSendNotificationRequest(0, &noti_buffer, sizeof(noti_buffer), 0);
-}
 
 int main(int argc, char **argv)
 {

@@ -50,7 +50,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@main
       with:
-        name: etaHEN-SDK-Binaries.tar
+        name: etaHEN-SDK-Binaries
         path:  |
               ELF_samples/bin/*.elf
               Plugin_samples/bin/*.elf

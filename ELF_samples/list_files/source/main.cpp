@@ -82,8 +82,8 @@ int main()
     return EXIT_FAILURE;
   }
 
-  puts("================== Listing files in /mnt/usb1 =================");
-  list_dir("/mnt/usb1");
+  puts("================== Listing files in /mnt/usb0 =================");
+  list_dir("/mnt/usb0");
   puts("================== END OF SAMPLE  ============================");
 
   return EXIT_SUCCESS;

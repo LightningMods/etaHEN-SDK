@@ -45,9 +45,7 @@ jobs:
       run: bash ./build.sh
 
     - name: Build etaHEN-SDK-Binaries
-      run: ls -l .
-           ls -l Plugin_samples/
-           bash ./build.sh
+      run: bash ./build.sh
 
     - name: Upload artifacts
       uses: actions/upload-artifact@main

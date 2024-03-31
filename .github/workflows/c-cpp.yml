@@ -46,14 +46,11 @@ jobs:
 
     - name: Build etaHEN-SDK-Binaries
       run: bash ./build.sh
-      
-    - name: List ELF_samples and Plugin_samples directory contents
-      run: ls -R ELF_samples/bin
-           ls -R Plugin_samples/bin
 
     - name: Upload artifacts
       uses: actions/upload-artifact@main
       with:
         name: etaHEN-SDK-Binaries.tar
-        path: ELF_samples/bin
-              Plugin_samples/bin
+        path: ELF_samples/bin/*.elf
+              Plugin_samples/bin/*.elf
+              Plugin_samples/bin/*.plugin

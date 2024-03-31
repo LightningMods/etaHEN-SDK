@@ -42,11 +42,12 @@ jobs:
 
     - name: Build SDK
       working-directory: ${{ env.PS5SDK }}
-      run:  ls -l Plugin_samples/
-            bash ./build.sh
+      run: bash ./build.sh
 
     - name: Build etaHEN-SDK-Binaries
-      run: bash ./build.sh
+      run: ls -l .
+           ls -l Plugin_samples/
+           bash ./build.sh
 
     - name: Upload artifacts
       uses: actions/upload-artifact@main

@@ -17,6 +17,7 @@ add_subdirectory(ELF_samples/hwinfo)
 add_subdirectory(ELF_samples/tcp_echo_server)
 add_subdirectory(ELF_samples/klog_printf)
 add_subdirectory(ELF_samples/http2)
+add_subdirectory(ELF_samples/list_files)
 
 add_subdirectory(Plugin_samples/utility_daemon)
 add_subdirectory(Plugin_samples/illusion_cheats)

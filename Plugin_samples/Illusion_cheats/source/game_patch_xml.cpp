@@ -10,7 +10,7 @@ __asm__(
 	".intel_syntax noprefix\n"
 	".section .data\n"
 	"DefaultXml_FliprateList:\n"
-	".incbin \"" XML_PATH_LIST "\"\n");
+	".incbin \"" "Plugin_samples/Illusion_cheats/data/game_patch_fliprate_list.xml" "\"\n");
 
 extern "C" const char DefaultXml_FliprateList[];
 
@@ -20,6 +20,11 @@ int makeDefaultXml_List()
 	if (!f)
 	{
 		FILE *new_f = fopen(XML_PATH_LIST, "w");
+		if(!new_f)
+		{
+			printf("Failed to create file: " XML_PATH_LIST "\n");
+			return -1;
+		}
 		// Print default data to TTY
 		printf("%s\n", DefaultXml_FliprateList);
 		fputs(DefaultXml_FliprateList, new_f);

@@ -18,19 +18,20 @@
 #include "servers.hpp"
 #include "util.hpp"
 #include "notify.hpp"
-#define STANDALONE 1// sendable using nc (no host features, scripts will not work in this mode)
-#define RESTMODE 1// able to enter sleep mode (no host features, scripts will not work in this mode)
+#define STANDALONE 1 // sendable using nc (no host features, scripts will not work in this mode)
+#define RESTMODE 1	 // able to enter sleep mode (no host features, scripts will not work in this mode)
 
 #include <pthread.h>
 #include "game_patch_thread.hpp"
 
 extern void makenewapp();
-extern "C" void free(void*);
+extern "C" void free(void *);
 
 extern "C" ssize_t _read(int, void *, size_t);
 extern "C" ssize_t _write(int, void *, size_t);
 
-void AbortServer::run(TcpSocket &sock) {
+void AbortServer::run(TcpSocket &sock)
+{
 	// any connection signals to shutdown the daemon
 	puts("abort signal received");
 	sock.close();
@@ -41,9 +42,24 @@ void AbortServer::run(TcpSocket &sock) {
 #else
 #define BUILD_MSG "Non Rest Mode Build"
 #endif
-
-int main() {
+#include "backtrace.hpp"
+void sig_handler(int signo)
+{
+	notify("Cheats plugin has crashed with signal %d", signo);
+	//printBacktraceForCrash();
+	exit(1);
+}
+int main()
+{
 	puts("daemon entered");
+	struct sigaction new_SIG_action;
+	new_SIG_action.sa_handler = sig_handler;
+	sigemptyset(&new_SIG_action.sa_mask);
+	new_SIG_action.sa_flags = 0;
+
+	for (int i = 0; i < 12; i++)
+		sigaction(i, &new_SIG_action, NULL);
+
 	printf_notification("libhijacker daemon started successfully.\nBuild mode: (" BUILD_MSG ")\n"
 						"Original project:\nhttps://github.com/astrelsky/libhijacker");
 	printf_notification("libhijacker - astrelsky\n"

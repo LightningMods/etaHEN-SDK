@@ -1,8 +1,8 @@
 #pragma once
 
 // default xml path
-#define XML_PATH "Plugin_samples/Illusion_cheats/data/game_patch_cfg.xml"
-#define XML_PATH_LIST "Plugin_samples/Illusion_cheats/data/game_patch_fliprate_list.xml"
+#define XML_PATH "/data/game_patch_fliprate_list.xml" //Plugin_samples/Illusion_cheats/data/game_patch_cfg.xml"
+#define XML_PATH_LIST "/data/game_patch_fliprate_list.xml"//"Plugin_samples/Illusion_cheats/data/game_patch_fliprate_list.xml"
 // Xml Keys
 #define GR1_EN "GravityRush1_English"
 #define GR2_60HzKey "GravityRush2_60FPS"

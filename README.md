@@ -10,6 +10,20 @@ etaHEN ELFs vs Plugins
 - **ELFs**: are meant for single use payload-like programs where they run a single task (like showing hwinfo in a notification, etc) then exit, requires the elfldr (HEN-V) plugin
 - **Plugins**: are daemons that are meant to run the whole time the console is on in the background
 
+
+Plugins
+--------
+- Plugins can be loaded by etaHEN automatically from either `/mnt/usb<number>/etahen/plugins` or internally from `/data/etaHEN/plugins` when etaHEN is first ran or by [Itemzflow](https://pkg-zone.com/details/ITEM00001)
+- Plugins located in the `etahen > plugins` folder on USB root are given priority over internally installed plugins in `/data/etaHEN/plugins`
+- Duplicate Plugins are ignored by etaHEN, etaHEN also checks if the plugin title id is already running
+- Plugins can be killed and ran by [Itemzflow](https://pkg-zone.com/details/ITEM00001)
+- each plugin has its own title id and version defined in the plugins `CMakeLists.txt` file as follows
+```
+set(PLUGIN_TITLE_ID "TEST00000")
+set(PLUGIN_VERSION "9.99")
+```
+- libhijacker provides plugins with tools to modify processes
+
 ELFs
 --------
 

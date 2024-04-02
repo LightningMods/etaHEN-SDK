@@ -7,7 +7,7 @@ etaHEN SDK
 
 etaHEN ELFs vs Plugins
 -------------
-- **ELFs**: are meant for single use payload-like programs where they run a single task (like showing hwinfo in a notification, etc) then exit, requires the eldldr plugin
+- **ELFs**: are meant for single use payload-like programs where they run a single task (like showing hwinfo in a notification, etc) then exit, requires the elfldr (HEN-V) plugin
 - **Plugins**: are daemons that are meant to run the whole time the console is on in the background
 
 ELFs

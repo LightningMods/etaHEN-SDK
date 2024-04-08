@@ -4,10 +4,11 @@
 
 uint32_t FlipRate_ConfigureOutput_Ptr;
 uint32_t FlipRate_isVideoModeSupported_Ptr;
+void cheat_log(const char *fmt, ...);
 
 void hexdump1(void *data, size_t size)
 {
-#ifdef DEBUG
+
 	if (!data || size <= 0)
 	{
 		return;
@@ -17,7 +18,7 @@ void hexdump1(void *data, size_t size)
 
 	for (i = 0; i < size; i++)
 	{
-		printf("%02x", *p++);
+		cheat_log("%02x ", *p++);
 		if (!(i % 16) && i != 0)
 		{
 			printf("\n");
@@ -25,7 +26,7 @@ void hexdump1(void *data, size_t size)
 	}
 
 	printf("\n");
-#endif
+
 }
 
 // valid hex look up table.
@@ -105,37 +106,38 @@ void write_bytes(pid_t pid, uint64_t addr, const char *hexString, enum write_fla
 	byteArray = hexstrtochar2(hexString, &bytesize);
 	if (!byteArray)
 	{
+		cheat_log("byteArray is nullptr");
 		return;
 	}
-	printf("addr: 0x%lx\n", addr);
+	cheat_log("addr: 0x%lx\n", addr);
 	dump_bytes_vm(pid, addr, bytesize);
 	dbg::write(pid, addr, byteArray, bytesize);
 	dump_bytes_vm(pid, addr, bytesize);
 	if (byteArray)
 	{
-		printf("freeing byteArray at 0x%p\n", byteArray);
+		cheat_log("freeing byteArray at 0x%p\n", byteArray);
 		free(byteArray);
 	}
 	if (special_flag & isOffsetVideoModeSupported &&
 		startsWith(hexString, "48050df0a70c") &&
 		FlipRate_isVideoModeSupported_Ptr)
 	{
-		_puts("isOffsetVideoModeSupported");
+		cheat_log("isOffsetVideoModeSupported");
 		write_bytes32(pid, addr + 2, FlipRate_isVideoModeSupported_Ptr);
 	}
 	else if (special_flag & isOffsetConfigureOutput &&
 			 startsWith(hexString, "48050df0ed5e") &&
 			 FlipRate_ConfigureOutput_Ptr)
 	{
-		_puts("isOffsetConfigureOutput");
+		cheat_log("isOffsetConfigureOutput");
 		write_bytes32(pid, addr + 2, FlipRate_ConfigureOutput_Ptr);
 	}
 }
 
 void write_bytes32(pid_t pid, uint64_t addr, const uint32_t val)
 {
-	_printf("addr: 0x%lx\n", addr);
-	_printf("val: 0x%08x\n", val);
+	cheat_log("addr: 0x%lx\n", addr);
+	cheat_log("val: 0x%08x\n", val);
 	dump_bytes_vm(pid, addr, sizeof(uint32_t));
 	dbg::write(pid, addr, (void*)&val, sizeof(uint32_t));
 	dump_bytes_vm(pid, addr, sizeof(uint32_t));
@@ -143,8 +145,8 @@ void write_bytes32(pid_t pid, uint64_t addr, const uint32_t val)
 
 void write_bytes64(pid_t pid, uint64_t addr, const size_t val)
 {
-	_printf("addr: 0x%lx\n", addr);
-	_printf("val: 0x%016lx\n", val);
+	cheat_log("addr: 0x%lx\n", addr);
+	cheat_log("val: 0x%016lx\n", val);
 	dump_bytes_vm(pid, addr, sizeof(size_t));
 	dbg::write(pid, addr, (void*)&val, sizeof(size_t));
 	dump_bytes_vm(pid, addr, sizeof(size_t));
@@ -152,8 +154,8 @@ void write_bytes64(pid_t pid, uint64_t addr, const size_t val)
 
 void write_string(pid_t pid, uint64_t addr, const char *string)
 {
-	_printf("addr: 0x%lx\n", addr);
-	_printf("val: %s", string);
+	cheat_log("addr: 0x%lx\n", addr);
+	cheat_log("val: %s", string);
 	size_t len = strlen(string) + 1;
 	dump_bytes_vm(pid, addr, len);
 	dbg::write(pid, addr, string, len);
@@ -162,8 +164,8 @@ void write_string(pid_t pid, uint64_t addr, const char *string)
 
 void write_float32(pid_t pid, uint64_t addr, const float val)
 {
-	_printf("addr: 0x%lx\n", addr);
-	_printf("val: %f\n", val);
+	cheat_log("addr: 0x%lx\n", addr);
+	cheat_log("val: %f\n", val);
 	dump_bytes_vm(pid, addr, sizeof(float));
 	dbg::write(pid, addr, (void*)&val, sizeof(float));
 	dump_bytes_vm(pid, addr, sizeof(float));
@@ -171,8 +173,8 @@ void write_float32(pid_t pid, uint64_t addr, const float val)
 
 void write_float64(pid_t pid, uint64_t addr, const double val)
 {
-	_printf("addr: 0x%lx\n", addr);
-	_printf("val: %lf\n", val);
+	cheat_log("addr: 0x%lx\n", addr);
+	cheat_log("val: %lf\n", val);
 	dump_bytes_vm(pid, addr, sizeof(double));
 	dbg::write(pid, addr, (void*)&val, sizeof(double));
 	dump_bytes_vm(pid, addr, sizeof(double));
@@ -226,7 +228,7 @@ static uint32_t pattern_to_byte(const char *pattern, uint8_t *bytes)
  */
 uint8_t *PatternScan(const uint64_t module_base, const uint64_t module_size, const char *signature)
 {
-	_printf("module_base: 0x%lx module_size: 0x%lx\n", module_base, module_size);
+	cheat_log("module_base: 0x%lx module_size: 0x%lx\n", module_base, module_size);
 	if (!module_base || !module_size)
 	{
 		return nullptr;
@@ -237,8 +239,8 @@ uint8_t *PatternScan(const uint64_t module_base, const uint64_t module_size, con
 	int32_t patternLength = pattern_to_byte(signature, patternBytes);
 	if (patternLength <= 0 || patternLength >= MAX_PATTERN_LENGTH)
 	{
-		_printf("Pattern length too large or invalid! %i (0x%08x)\n", patternLength, patternLength);
-		_printf("Input Pattern %s\n", signature);
+		cheat_log("Pattern length too large or invalid! %i (0x%08x)\n", patternLength, patternLength);
+		cheat_log("Input Pattern %s\n", signature);
 		return nullptr;
 	}
 	uint8_t *scanBytes = (uint8_t *)module_base;
@@ -255,7 +257,7 @@ uint8_t *PatternScan(const uint64_t module_base, const uint64_t module_size, con
 		}
 		if (found)
 		{
-			_printf("found pattern at 0x%p\n", &scanBytes[i]);
+			cheat_log("found pattern at 0x%p\n", &scanBytes[i]);
 			return &scanBytes[i];
 		}
 	}
@@ -274,9 +276,9 @@ bool patchShellCore(const pid_t app_pid, const uint64_t shellcore_base, const ui
 	{
 		return false;
 	}
-	_printf("allocating 0x%lx bytes\n", shellcore_size);
+	cheat_log("allocating 0x%lx bytes\n", shellcore_size);
 	char *shellcore_copy = (char *)malloc(shellcore_size);
-	_printf("shellcore_copy: 0x%p\n", shellcore_copy);
+	cheat_log("shellcore_copy: 0x%p\n", shellcore_copy);
 	if (!shellcore_copy)
 	{
 		_puts("shellcore_copy is nullptr");
@@ -289,8 +291,8 @@ bool patchShellCore(const pid_t app_pid, const uint64_t shellcore_base, const ui
 		{
 			uint64_t offset_to_patch = ((uint64_t)shellcore_offset - (uint64_t)shellcore_copy);
 			shellcore_offset_patch = shellcore_base + offset_to_patch;
-			_printf("shellcore_offset_patch: 0x%lx\n", shellcore_offset_patch);
-			_printf("offset_to_patch: 0x%lx\n", offset_to_patch);
+			cheat_log("shellcore_offset_patch: 0x%lx\n", shellcore_offset_patch);
+			cheat_log("offset_to_patch: 0x%lx\n", offset_to_patch);
 			dbg::read(app_pid, shellcore_offset_patch, backupShellCoreBytes, sizeof(backupShellCoreBytes));
 			write_bytes(app_pid, shellcore_offset_patch, "b840100000");
 			status = true;
@@ -302,7 +304,7 @@ bool patchShellCore(const pid_t app_pid, const uint64_t shellcore_base, const ui
 	}
 	if (shellcore_copy)
 	{
-		_printf("freeing shellcore_copy from 0x%p\n", shellcore_copy);
+		cheat_log("freeing shellcore_copy from 0x%p\n", shellcore_copy);
 		free(shellcore_copy);
 	}
 	return status;

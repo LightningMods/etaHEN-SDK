@@ -18,6 +18,23 @@
 
 extern "C"
 {
+#define ENTRYPOINT_OFFSET 0x70
+
+#define PROCESS_LAUNCHED 1
+
+#define LOOB_BUILDER_SIZE 21
+#define LOOP_BUILDER_TARGET_OFFSET 3
+#define USLEEP_NID "QcteRwbsnV0"
+
+#include <elfldr.h>
+#include <libs.h>
+#include "nid_resolver/resolver.h"
+#include <module.h>
+#include <jailbreak.h>
+#include <offsets.h>
+#include <rtld.h>
+#include <proc.h>
+#include <tracer.h>
 #include "../extern/pfd_sfo_tools/sfopatcher/src/sfo.h"
 #include "../extern/tiny-json/tiny-json.h"
 	int32_t sceKernelPrepareToSuspendProcess(pid_t pid);
@@ -251,7 +268,7 @@ void *GamePatch_InputThread(void *unused)
 				currentTogglePressed = checkPatchButton(&pData);
 				if (currentTogglePressed && !prevTogglePressed)
 				{
-					g_doPatchGames = !g_doPatchGames;
+				   g_doPatchGames = !g_doPatchGames;
 					printf_notification("User requested to patch games: %s", g_doPatchGames ? "true" : "false");
 				}
 				prevTogglePressed = currentTogglePressed;
@@ -300,7 +317,28 @@ static void ResumeApp(pid_t pid)
 	sceKernelPrepareToResumeProcess(pid);
 	sceKernelResumeProcess(pid);
 }
+extern "C" int sceSystemServiceGetAppIdOfRunningBigApp();
+extern "C" int sceSystemServiceGetAppTitleId(int app_id, char *title_id);
 
+bool Get_Running_App_TID(String &title_id)
+{
+	char tid[255];
+	int BigAppid = sceSystemServiceGetAppIdOfRunningBigApp();
+	if (BigAppid < 0)
+	{
+		return false;
+	}
+	(void)memset(tid, 0, sizeof tid);
+
+	if (sceSystemServiceGetAppTitleId(BigAppid, &tid[0]) != 0)
+	{
+		return false;
+	}
+
+	title_id = String(tid);
+
+	return true;
+}
 int32_t patch_SetFlipRate(const Hijacker &hijacker, const pid_t pid)
 {
 	static constexpr Nid sceVideoOutSetFlipRate_Nid{"CBiu4mCE1DA"};
@@ -332,6 +370,37 @@ int32_t patch_SetFlipRate(const Hijacker &hijacker, const pid_t pid)
 	}
 	ResumeApp(pid);
 	return 0;
+}
+#include <fcntl.h>
+
+void cheat_log(const char *fmt, ...)
+{
+	char msg[0x1000];
+	va_list args;
+	va_start(args, fmt);
+	__builtin_vsnprintf(msg, sizeof(msg), fmt, args);
+	va_end(args);
+
+	// Append newline at the end
+	size_t msg_len = strlen(msg);
+	if (msg_len < sizeof(msg) - 1)
+	{
+		msg[msg_len] = '\n';
+		msg[msg_len + 1] = '\0';
+	}
+	else
+	{
+		msg[sizeof(msg) - 2] = '\n';
+		msg[sizeof(msg) - 1] = '\0';
+	}
+
+	int fd = open("/data/etaHEN/cheat_plugin.log", O_WRONLY | O_CREAT | O_APPEND, 0777);
+	if (fd < 0)
+	{
+		return;
+	}
+	write(fd, msg, strlen(msg));
+	close(fd);
 }
 
 void *GamePatch_Thread(void *unused)
@@ -400,425 +469,392 @@ void *GamePatch_Thread(void *unused)
 		}
 	}
 
+	cheat_log("Game Patch thread running.\nBuilt: " __DATE__ " @ " __TIME__);
 	while (g_game_patch_thread_running)
 	{
+		String tid;
 		if (!doPatchGames)
+		{
+			cheat_log("doPatchGames is false");
+			usleep(1000);
+			continue;
+		}
+
+		if (!Get_Running_App_TID(tid))
+		{
+			if(g_foundApp)
+			    cheat_log("app is no longer running");
+
+			usleep(1000);
+			target_running_pid = -1;
+			g_foundApp = false;
+			continue;
+		}
+
+		if (g_foundApp)
 		{
 			usleep(1000);
 			continue;
 		}
-		if (dbg::getProcesses().length() == 0)
-		{
-			printf_notification("(dbg::getProcesses().length() == 0), continuing");
-			continue;
-		}
+
+		pid_t app_pid = 0;
+		String proc_name;
 		for (auto p : dbg::getProcesses())
 		{
-			if (g_foundApp)
+
+			app_pid = p.pid();
+			const auto app = getProc(app_pid);
+			if (strstr(app->titleId().c_str(), tid.c_str()) != 0)
 			{
-				usleep(1000);
+				proc_name = p.name();
 				break;
 			}
-			const pid_t app_pid = p.pid();
-			const UniquePtr<Hijacker> executable = Hijacker::getHijacker(app_pid);
-			uintptr_t text_base = 0;
-			uint64_t text_size = 0;
-			if (executable)
-			{
-				text_base = executable->getEboot()->getTextSection()->start();
-				text_size = executable->getEboot()->getTextSection()->sectionLength();
-			}
-			else
-			{
-				continue;
-			}
-			if (text_base == 0 || text_size == 0)
-			{
-				continue;
-			}
-			const auto app = getProc(app_pid);
-			String titleId = app->titleId();
-			StringView process_name = p.name();
-			const char *app_id = titleId.c_str();
-			const char *process_name_c_str = process_name.c_str();
-			if (text_base && !g_foundApp &&
-				(startsWith(app_id, "CUSA") ||
-				 startsWith(app_id, "PCAS") ||
-				 startsWith(app_id, "PCJS")))
-			{
-				char app_ver[APP_VER_SIZE]{};
-				char master_ver[MASTER_VER_SIZE]{};
-				char content_id[CONTENT_ID_SIZE]{};
-				int32_t ret = get_app_info(app_id, app_ver, master_ver, content_id, PS4_APP);
-				if (ret != 0)
-				{
-					// something went wrong
-					printf_notification("get_app_info(%s) failed! %d", app_id, ret);
-					continue;
-				}
-				else if (ret == 0)
-				{
-					g_foundApp = true;
-					target_running_pid = app_pid;
-				}
-				SuspendApp(app_pid);
-				if (startsWith(process_name_c_str, "eboot.bin"))
-				{
-					if ((startsWith(app_id, "CUSA00547") ||
-						 startsWith(app_id, "CUSA03694") ||
-						 startsWith(app_id, "CUSA04934") ||
-						 startsWith(app_id, "CUSA04943")) &&
-						(startsWith(app_ver, "01.11")))
-					{
-						DoPatch_GravityDaze2_111(app_pid, text_base);
-					}
-					else if ((startsWith(app_id, "PCAS00035") ||
-							  startsWith(app_id, "PCJS50004") ||
-							  startsWith(app_id, "PCJS50008") ||
-							  startsWith(app_id, "PCJS66015") ||
-							  startsWith(app_id, "CUSA00546") ||
-							  startsWith(app_id, "CUSA01112") ||
-							  startsWith(app_id, "CUSA01113") ||
-							  startsWith(app_id, "CUSA01130") ||
-							  startsWith(app_id, "CUSA02318")) &&
-							 (startsWith(app_ver, "01.00")))
-					{
-						DoPatchGravityDaze_101(app_pid, text_base);
-					}
-					else if ((startsWith(app_id, "CUSA00900") ||
-							  startsWith(app_id, "CUSA00207") ||
-							  startsWith(app_id, "CUSA01363") ||
-							  startsWith(app_id, "CUSA03173") ||
-							  startsWith(app_id, "CUSA03023") ||
-							  startsWith(app_id, "CUSA00208") ||
-							  startsWith(app_id, "CUSA01363")) &&
-							 (startsWith(app_ver, "01.09")))
-					{
-						DoPatch_Bloodborne109(app_pid, text_base);
-					}
-					else if ((startsWith(app_id, "CUSA00003") ||
-							  startsWith(app_id, "CUSA00064") ||
-							  startsWith(app_id, "CUSA00066") ||
-							  startsWith(app_id, "CUSA00093") ||
-							  startsWith(app_id, "CUSA00879")) &&
-							 (startsWith(app_ver, "01.28")))
-					{
-						DoPatch_DriveClub_128(app_pid, text_base);
-					}
-					else if ((startsWith(app_id, "CUSA03627") ||
-							  startsWith(app_id, "CUSA03745") ||
-							  startsWith(app_id, "CUSA04936")) &&
-							 (startsWith(app_ver, "01.03")))
-					{
-						DoPatch_TheLastGuardian_103(app_pid, text_base);
-					}
-					else if ((startsWith(app_id, "CUSA08034") ||
-							  startsWith(app_id, "CUSA08804") ||
-							  startsWith(app_id, "CUSA08809")) &&
-							 (startsWith(app_ver, "01.00") ||
-							  startsWith(app_ver, "01.01")))
-					{
-						DoPatch_SOTC_100(app_pid, text_base);
-					}
-					else if ((startsWith(app_id, "CUSA07820") ||
-							  startsWith(app_id, "CUSA10249") ||
-							  startsWith(app_id, "CUSA13986") ||
-							  startsWith(app_id, "CUSA14006")) &&
-							 (startsWith(app_ver, "01.00")))
-					{
-						DoPatch_t2ps4(app_pid, text_base, 0x100);
-					}
-					else if ((startsWith(app_id, "CUSA07820") ||
-							  startsWith(app_id, "CUSA10249") ||
-							  startsWith(app_id, "CUSA13986") ||
-							  startsWith(app_id, "CUSA14006")) &&
-							 (startsWith(app_ver, "01.09")))
-					{
-						DoPatch_t2ps4(app_pid, text_base, 0x109);
-					}
-					else if ((startsWith(app_id, "CUSA00552") ||
-							  startsWith(app_id, "CUSA00556") ||
-							  startsWith(app_id, "CUSA00557") ||
-							  startsWith(app_id, "CUSA00559")) &&
-							 (startsWith(app_ver, "01.11")))
-					{
-						DoPatch_t1ps4_111(app_pid, text_base);
-					}
-					else if ((startsWith(app_id, "CUSA09254") ||
-							  startsWith(app_id, "CUSA09264") ||
-							  startsWith(app_id, "CUSA12635") ||
-							  startsWith(app_id, "CUSA13217") ||
-							  startsWith(app_id, "CUSA13318")) &&
-							 (startsWith(app_ver, "01.32")))
-					{
-						// 60 FPS
-						write_bytes(app_pid, NO_ASLR(0x0264c85d), "41be00000000");
-						write_bytes(app_pid, NO_ASLR(0x005b6bcd), "41be01000000");
-						write_bytes(app_pid, NO_ASLR(0x005b6bd3), "eb1a");
-						// res patch
-						/*
-						write_bytes(app_pid, NO_ASLR(0x026533ef), "66c781386800000000");
-						write_bytes(app_pid, NO_ASLR(0x026533f8), "c6813a68000000");
-						write_bytes32(app_pid, NO_ASLR(0x02653426), 3840);
-						write_bytes32(app_pid, NO_ASLR(0x02653441), 2160);
-						write_bytes32(app_pid, NO_ASLR(0x026565f6), 3840);
-						write_bytes32(app_pid, NO_ASLR(0x026565e1), 2160);
-						write_bytes32(app_pid, NO_ASLR(0x026533cc), 3840);
-						write_bytes32(app_pid, NO_ASLR(0x026533d0), 2160);
-						*/
-						// cheats
-						printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
-					}
-					else if ((startsWith(app_id, "CUSA01493") ||
-							  startsWith(app_id, "CUSA02747") ||
-							  startsWith(app_id, "CUSA02748")) &&
-							 (startsWith(app_ver, "01.05")))
-					{
-						// 60 FPS
-						write_bytes(app_pid, NO_ASLR(0x00a1f817), "4831c9");
-						write_bytes(app_pid, NO_ASLR(0x01ddd118), "41c7c403000000");
-						printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
-					}
-					else if ((startsWith(app_id, "CUSA00133") ||
-							  startsWith(app_id, "CUSA00135") ||
-							  startsWith(app_id, "CUSA01009")) &&
-							 (startsWith(app_ver, "01.15")))
-					{
-						// 60 FPS
-						write_bytes(app_pid, NO_ASLR(0x009fa57e), "be00000000");
-						write_bytes(app_pid, NO_ASLR(0x009fa596), "b800000000");   // vsync
-						write_bytes(app_pid, NO_ASLR(0x009fb9e1), "48e9a9000000"); // no GUseFixedTimeStep
-						write_bytes(app_pid, NO_ASLR(0x017b2a62), "c5f857c09090"); // No MaxSmoothedFPS, fixes 58 fps
-						printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
-					}
-					else if ((startsWith(app_id, "CUSA18097") ||
-							  startsWith(app_id, "CUSA18100") ||
-							  startsWith(app_id, "CUSA19278")) &&
-							 (startsWith(app_ver, "01.04")))
-					{
-						// 60 FPS
-						write_bytes(app_pid, NO_ASLR(0x0312a29a), "418b7c240831f60f1f8000000000"); // fliprate
-						// write_bytes(app_pid, NO_ASLR(0x0311ea1b), "b801000000"); // use vsync on base ps4 // redundant?
-						write_bytes32(app_pid, NO_ASLR(0x045a1a10), 0x3c888889);								 // menu
-						write_bytes(app_pid, NO_ASLR(0x01be8ba9), "41c7471808000000660f1f4400000f1f8000000000"); // gameplay
-						write_bytes32(app_pid, NO_ASLR(0x045f6f28), 0);											 // logo movies
-						write_bytes32(app_pid, NO_ASLR(0x045f6f3d), 0);
-						printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
-					}
-					else if ((startsWith(app_id, "CUSA00341") ||
-							  startsWith(app_id, "CUSA00912") ||
-							  startsWith(app_id, "CUSA00917") ||
-							  startsWith(app_id, "CUSA00918") ||
-							  startsWith(app_id, "CUSA04529")) &&
-							 (startsWith(app_ver, "01.33")))
-					{
-						// 60 FPS
-						write_bytes32(app_pid, NO_ASLR(0x00616e54), 0x1);
-						write_bytes(app_pid, NO_ASLR(0x020e9880), "31f6");
-						write_bytes(app_pid, NO_ASLR(0x020e9882), "ff25804e4600");
-						// Debug Menu
-						write_bytes(app_pid, NO_ASLR(0x005c8d97), "c7c101000000");
-						write_bytes(app_pid, NO_ASLR(0x005c8d9d), "41b401");
-						printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
-					}
-					else if ((startsWith(app_id, "CUSA07875") ||
-							  startsWith(app_id, "CUSA09564") ||
-							  startsWith(app_id, "CUSA07737") ||
-							  startsWith(app_id, "CUSA08347") ||
-							  startsWith(app_id, "CUSA08352")) &&
-							 (startsWith(app_ver, "01.09")))
-					{
-						// 60 FPS
-						write_bytes32(app_pid, NO_ASLR(0x00623bff), 0x1);
-						write_bytes(app_pid, NO_ASLR(0x022193f0), "31f6");
-						write_bytes(app_pid, NO_ASLR(0x022193f2), "ff25b8484800");
-						// Debug Menu
-						write_bytes(app_pid, NO_ASLR(0x005c8fc3), "31c9");
-						write_bytes(app_pid, NO_ASLR(0x005c8fc5), "0f1f4000");
-						write_bytes(app_pid, NO_ASLR(0x005c8fd6), "31d2");
-						printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
-					}
-					else if ((startsWith(app_id, "CUSA00663") ||
-							  startsWith(app_id, "CUSA00605") ||
-							  startsWith(app_id, "CUSA00476")) &&
-							 (startsWith(app_ver, "01.05")))
-					{
-						// Startup logo skip
-						write_bytes(app_pid, NO_ASLR(0x03ffaadb), "0f85");
-						printf_notification("%s (%s): 60 FPS Patched!", app->titleId().c_str(), app_ver);
-					}
-					else if ((startsWith(app_id, "CUSA00049") ||
-							  startsWith(app_id, "CUSA00110") ||
-							  startsWith(app_id, "CUSA00157")) &&
-							 (startsWith(app_ver, "01.24")))
-					{
-						DoPatchBF4_124(app_pid, text_base);
-					}
-					else if ((startsWith(app_id, "CUSA00002") ||
-							  startsWith(app_id, "CUSA00008") ||
-							  startsWith(app_id, "CUSA00085") ||
-							  startsWith(app_id, "CUSA00190")) &&
-							 (startsWith(app_ver, "01.81")))
-					{
-						DoPatchKillzone_181(app_pid, text_base);
-					}
-					else if ((startsWith(app_id, "CUSA01499") ||
-							  startsWith(app_id, "CUSA01542") ||
-							  startsWith(app_id, "CUSA01566")) &&
-							 (startsWith(app_ver, "01.02")))
-					{
-						DoPatchMEC_102(app_pid, text_base);
-					}
-					else if ((startsWith(app_id, "CUSA00220") ||
-							  startsWith(app_id, "CUSA00503") ||
-							  startsWith(app_id, "CUSA00728") ||
-							  startsWith(app_id, "CUSA01425")) &&
-							 (startsWith(app_ver, "01.12")))
-					{
-						// 60 FPS
-						write_bytes(app_pid, NO_ASLR(0x015dcc1f), "be00000000");
-						write_bytes(app_pid, NO_ASLR(0x012517d1), "c744202800007042");
-						write_bytes(app_pid, NO_ASLR(0x012517d9), "c644205201");
-						write_bytes(app_pid, NO_ASLR(0x015dcc5f), "b800000000");
-						printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
-					}
-					else if ((startsWith(app_id, "CUSA18471") ||
-							  startsWith(app_id, "CUSA18742") ||
-							  startsWith(app_id, "CUSA18774") ||
-							  startsWith(app_id, "CUSA19072")) &&
-							 (startsWith(app_ver, "01.03")))
-					{
-						DoPatchNier103(app_pid, text_base);
-					}
-					else if (((startsWith(app_id, "CUSA02085") ||
-							  startsWith(app_id, "CUSA02092")) &&
-							 (startsWith(app_ver, "01.12"))) ||
-							 (startsWith(app_id, "CUSA04701") && startsWith(app_ver, "01.11")))
-					{
-						DoPatchDoom_112(app_pid, text_base);
-					}
-					else if ((startsWith(app_id, "CUSA10866") ||
-							  startsWith(app_id, "CUSA10851")) &&
-							 (startsWith(app_ver, "01.03")))
-					{
-						DoPatchBPR_103(app_pid, text_base);
-					}
-				}
+		}
 
-				// multiple selfs
-				// this thread wait model is stinky
-				// big2
-				if ((startsWith(app_id, "CUSA01399") ||
-					 startsWith(app_id, "CUSA02320") ||
-					 startsWith(app_id, "CUSA02343") ||
-					 startsWith(app_id, "CUSA02344") ||
-					 startsWith(app_id, "CUSA02826")))
+		cheat_log("found %s (%d) %s", tid.c_str(), app_pid, proc_name.c_str());
+		const UniquePtr<Hijacker> executable = Hijacker::getHijacker(app_pid);
+		uintptr_t text_base = 0;
+		uint64_t text_size = 0;
+		if (executable)
+		{
+			text_base = executable->getEboot()->getTextSection()->start();
+			text_size = executable->getEboot()->getTextSection()->sectionLength();
+		}
+		else
+		{
+			cheat_log("Failed to get hijacker for %s (%d)", tid.c_str(), app_pid);
+			continue;
+		}
+		if (text_base == 0 || text_size == 0)
+		{
+			cheat_log("text_base == 0 || text_size == 0");
+			continue;
+		}
+		// const auto app = getProc(app_pid);
+		cheat_log("Checking %s (%d)", tid.c_str(), app_pid);
+		const char *app_id = tid.c_str();
+		const char *process_name_c_str = proc_name.c_str();
+		if (text_base && !g_foundApp &&
+			(startsWith(app_id, "CUSA") ||
+			 startsWith(app_id, "PCAS") ||
+			 startsWith(app_id, "PCJS")))
+		{
+			char app_ver[APP_VER_SIZE]{};
+			char master_ver[MASTER_VER_SIZE]{};
+			char content_id[CONTENT_ID_SIZE]{};
+			int32_t ret = get_app_info(app_id, app_ver, master_ver, content_id, PS4_APP);
+			if (ret != 0)
+			{
+				// something went wrong
+				cheat_log("get_app_info(%s) failed! %d", app_id, ret);
+				continue;
+			}
+			else if (ret == 0)
+			{
+				g_foundApp = true;
+				target_running_pid = app_pid;
+			}
+			cheat_log("suspending app %s", app_id);
+			SuspendApp(app_pid);
+			cheat_log("app %s suspended", app_id);
+			if (startsWith(process_name_c_str, "eboot.bin"))
+			{
+				if ((startsWith(app_id, "CUSA00547") ||
+					 startsWith(app_id, "CUSA03694") ||
+					 startsWith(app_id, "CUSA04934") ||
+					 startsWith(app_id, "CUSA04943")) &&
+					(startsWith(app_ver, "01.11")))
 				{
-					if (startsWith(app_ver, "01.00"))
-					{
-						if (startsWith(process_name_c_str, "eboot.bin"))
-						{
-							DoPatch_BigCollection(app_pid, text_base, (0x100 << 1));
-						}
-						else if (startsWith(process_name_c_str, "big2-ps4_Shipping.elf"))
-						{
-							DoPatch_BigCollection(app_pid, text_base, (0x100 << 2));
-						}
-						// big3
-						else if (startsWith(process_name_c_str, "big3-ps4_Shipping.elf"))
-						{
-							DoPatch_BigCollection(app_pid, text_base, (0x100 << 3));
-						}
-					}
-					else if (startsWith(app_ver, "01.02"))
-					{
-						if (startsWith(process_name_c_str, "eboot.bin"))
-						{
-							DoPatch_BigCollection(app_pid, text_base, (0x102 << 1));
-						}
-						else if (startsWith(process_name_c_str, "big2-ps4_Shipping.elf"))
-						{
-							DoPatch_BigCollection(app_pid, text_base, (0x102 << 2));
-						}
-						// big3
-						else if (startsWith(process_name_c_str, "big3-ps4_Shipping.elf"))
-						{
-							DoPatch_BigCollection(app_pid, text_base, (0x102 << 3));
-						}
-					}
+					DoPatch_GravityDaze2_111(app_pid, text_base);
 				}
-				int32_t fliprate_game_found = false;
-				if (Xml_parseTitleID(app_id))
+				else if ((startsWith(app_id, "PCAS00035") ||
+						  startsWith(app_id, "PCJS50004") ||
+						  startsWith(app_id, "PCJS50008") ||
+						  startsWith(app_id, "PCJS66015") ||
+						  startsWith(app_id, "CUSA00546") ||
+						  startsWith(app_id, "CUSA01112") ||
+						  startsWith(app_id, "CUSA01113") ||
+						  startsWith(app_id, "CUSA01130") ||
+						  startsWith(app_id, "CUSA02318")) &&
+						 (startsWith(app_ver, "01.00")))
 				{
-					printf_notification("Title ID found in universal fliprate list:\n%s", app_id);
-					ResumeApp(app_pid);
-					patch_SetFlipRate(*executable, app_pid);
-					fliprate_game_found = true;
-					break;
+					DoPatchGravityDaze_101(app_pid, text_base);
 				}
-				if (!fliprate_game_found)
+				else if ((startsWith(app_id, "CUSA00900") ||
+						  startsWith(app_id, "CUSA00207") ||
+						  startsWith(app_id, "CUSA01363") ||
+						  startsWith(app_id, "CUSA03173") ||
+						  startsWith(app_id, "CUSA03023") ||
+						  startsWith(app_id, "CUSA00208") ||
+						  startsWith(app_id, "CUSA01363")) &&
+						 (startsWith(app_ver, "01.09")))
 				{
-					ResumeApp(app_pid);
-					if (g_UniversalFlipRatePatch)
-					{
-						patch_SetFlipRate(*executable, app_pid);
-					}
+					DoPatch_Bloodborne109(app_pid, text_base);
+				}
+				else if ((startsWith(app_id, "CUSA00003") ||
+						  startsWith(app_id, "CUSA00064") ||
+						  startsWith(app_id, "CUSA00066") ||
+						  startsWith(app_id, "CUSA00093") ||
+						  startsWith(app_id, "CUSA00879")) &&
+						 (startsWith(app_ver, "01.28")))
+				{
+					DoPatch_DriveClub_128(app_pid, text_base);
+				}
+				else if ((startsWith(app_id, "CUSA03627") ||
+						  startsWith(app_id, "CUSA03745") ||
+						  startsWith(app_id, "CUSA04936")) &&
+						 (startsWith(app_ver, "01.03")))
+				{
+					DoPatch_TheLastGuardian_103(app_pid, text_base);
+				}
+				else if ((startsWith(app_id, "CUSA08034") ||
+						  startsWith(app_id, "CUSA08804") ||
+						  startsWith(app_id, "CUSA08809")) &&
+						 (startsWith(app_ver, "01.00") ||
+						  startsWith(app_ver, "01.01")))
+				{
+					DoPatch_SOTC_100(app_pid, text_base);
+				}
+				else if ((startsWith(app_id, "CUSA07820") ||
+						  startsWith(app_id, "CUSA10249") ||
+						  startsWith(app_id, "CUSA13986") ||
+						  startsWith(app_id, "CUSA14006")) &&
+						 (startsWith(app_ver, "01.00")))
+				{
+					DoPatch_t2ps4(app_pid, text_base, 0x100);
+				}
+				else if ((startsWith(app_id, "CUSA07820") ||
+						  startsWith(app_id, "CUSA10249") ||
+						  startsWith(app_id, "CUSA13986") ||
+						  startsWith(app_id, "CUSA14006")) &&
+						 (startsWith(app_ver, "01.09")))
+				{
+					DoPatch_t2ps4(app_pid, text_base, 0x109);
+				}
+				else if ((startsWith(app_id, "CUSA00552") ||
+						  startsWith(app_id, "CUSA00556") ||
+						  startsWith(app_id, "CUSA00557") ||
+						  startsWith(app_id, "CUSA00559")) &&
+						 (startsWith(app_ver, "01.11")))
+				{
+					DoPatch_t1ps4_111(app_pid, text_base);
+				}
+				else if ((startsWith(app_id, "CUSA09254") ||
+						  startsWith(app_id, "CUSA09264") ||
+						  startsWith(app_id, "CUSA12635") ||
+						  startsWith(app_id, "CUSA13217") ||
+						  startsWith(app_id, "CUSA13318")) &&
+						 (startsWith(app_ver, "01.32")))
+				{
+					// 60 FPS
+					write_bytes(app_pid, NO_ASLR(0x0264c85d), "41be00000000");
+					write_bytes(app_pid, NO_ASLR(0x005b6bcd), "41be01000000");
+					write_bytes(app_pid, NO_ASLR(0x005b6bd3), "eb1a");
+					// res patch
+					/*
+					write_bytes(app_pid, NO_ASLR(0x026533ef), "66c781386800000000");
+					write_bytes(app_pid, NO_ASLR(0x026533f8), "c6813a68000000");
+					write_bytes32(app_pid, NO_ASLR(0x02653426), 3840);
+					write_bytes32(app_pid, NO_ASLR(0x02653441), 2160);
+					write_bytes32(app_pid, NO_ASLR(0x026565f6), 3840);
+					write_bytes32(app_pid, NO_ASLR(0x026565e1), 2160);
+					write_bytes32(app_pid, NO_ASLR(0x026533cc), 3840);
+					write_bytes32(app_pid, NO_ASLR(0x026533d0), 2160);
+					*/
+					// cheats
+					printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
+				}
+				else if ((startsWith(app_id, "CUSA01493") ||
+						  startsWith(app_id, "CUSA02747") ||
+						  startsWith(app_id, "CUSA02748")) &&
+						 (startsWith(app_ver, "01.05")))
+				{
+					// 60 FPS
+					write_bytes(app_pid, NO_ASLR(0x00a1f817), "4831c9");
+					write_bytes(app_pid, NO_ASLR(0x01ddd118), "41c7c403000000");
+					printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
+				}
+				else if ((startsWith(app_id, "CUSA00133") ||
+						  startsWith(app_id, "CUSA00135") ||
+						  startsWith(app_id, "CUSA01009")) &&
+						 (startsWith(app_ver, "01.15")))
+				{
+					// 60 FPS
+					write_bytes(app_pid, NO_ASLR(0x009fa57e), "be00000000");
+					write_bytes(app_pid, NO_ASLR(0x009fa596), "b800000000");   // vsync
+					write_bytes(app_pid, NO_ASLR(0x009fb9e1), "48e9a9000000"); // no GUseFixedTimeStep
+					write_bytes(app_pid, NO_ASLR(0x017b2a62), "c5f857c09090"); // No MaxSmoothedFPS, fixes 58 fps
+					printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
+				}
+				else if ((startsWith(app_id, "CUSA18097") ||
+						  startsWith(app_id, "CUSA18100") ||
+						  startsWith(app_id, "CUSA19278")) &&
+						 (startsWith(app_ver, "01.04")))
+				{
+					// 60 FPS
+					write_bytes(app_pid, NO_ASLR(0x0312a29a), "418b7c240831f60f1f8000000000"); // fliprate
+					// write_bytes(app_pid, NO_ASLR(0x0311ea1b), "b801000000"); // use vsync on base ps4 // redundant?
+					write_bytes32(app_pid, NO_ASLR(0x045a1a10), 0x3c888889);								 // menu
+					write_bytes(app_pid, NO_ASLR(0x01be8ba9), "41c7471808000000660f1f4400000f1f8000000000"); // gameplay
+					write_bytes32(app_pid, NO_ASLR(0x045f6f28), 0);											 // logo movies
+					write_bytes32(app_pid, NO_ASLR(0x045f6f3d), 0);
+					printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
+				}
+				else if ((startsWith(app_id, "CUSA00341") ||
+						  startsWith(app_id, "CUSA00912") ||
+						  startsWith(app_id, "CUSA00917") ||
+						  startsWith(app_id, "CUSA00918") ||
+						  startsWith(app_id, "CUSA04529")) &&
+						 (startsWith(app_ver, "01.33")))
+				{
+					// 60 FPS
+					write_bytes32(app_pid, NO_ASLR(0x00616e54), 0x1);
+					write_bytes(app_pid, NO_ASLR(0x020e9880), "31f6");
+					write_bytes(app_pid, NO_ASLR(0x020e9882), "ff25804e4600");
+					// Debug Menu
+					write_bytes(app_pid, NO_ASLR(0x005c8d97), "c7c101000000");
+					write_bytes(app_pid, NO_ASLR(0x005c8d9d), "41b401");
+					printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
+				}
+				else if ((startsWith(app_id, "CUSA07875") ||
+						  startsWith(app_id, "CUSA09564") ||
+						  startsWith(app_id, "CUSA07737") ||
+						  startsWith(app_id, "CUSA08347") ||
+						  startsWith(app_id, "CUSA08352")) &&
+						 (startsWith(app_ver, "01.09")))
+				{
+					// 60 FPS
+					write_bytes32(app_pid, NO_ASLR(0x00623bff), 0x1);
+					write_bytes(app_pid, NO_ASLR(0x022193f0), "31f6");
+					write_bytes(app_pid, NO_ASLR(0x022193f2), "ff25b8484800");
+					// Debug Menu
+					write_bytes(app_pid, NO_ASLR(0x005c8fc3), "31c9");
+					write_bytes(app_pid, NO_ASLR(0x005c8fc5), "0f1f4000");
+					write_bytes(app_pid, NO_ASLR(0x005c8fd6), "31d2");
+					printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
+				}
+				else if ((startsWith(app_id, "CUSA00663") ||
+						  startsWith(app_id, "CUSA00605") ||
+						  startsWith(app_id, "CUSA00476")) &&
+						 (startsWith(app_ver, "01.05")))
+				{
+					// Startup logo skip
+					write_bytes(app_pid, NO_ASLR(0x03ffaadb), "0f85");
+					printf_notification("%s (%s): 60 FPS Patched!", tid.c_str(), app_ver);
+				}
+				else if ((startsWith(app_id, "CUSA00049") ||
+						  startsWith(app_id, "CUSA00110") ||
+						  startsWith(app_id, "CUSA00157")) &&
+						 (startsWith(app_ver, "01.24")))
+				{
+					DoPatchBF4_124(app_pid, text_base);
+				}
+				else if ((startsWith(app_id, "CUSA00002") ||
+						  startsWith(app_id, "CUSA00008") ||
+						  startsWith(app_id, "CUSA00085") ||
+						  startsWith(app_id, "CUSA00190")) &&
+						 (startsWith(app_ver, "01.81")))
+				{
+					DoPatchKillzone_181(app_pid, text_base);
+				}
+				else if ((startsWith(app_id, "CUSA01499") ||
+						  startsWith(app_id, "CUSA01542") ||
+						  startsWith(app_id, "CUSA01566")) &&
+						 (startsWith(app_ver, "01.02")))
+				{
+					DoPatchMEC_102(app_pid, text_base);
+				}
+				else if ((startsWith(app_id, "CUSA00220") ||
+						  startsWith(app_id, "CUSA00503") ||
+						  startsWith(app_id, "CUSA00728") ||
+						  startsWith(app_id, "CUSA01425")) &&
+						 (startsWith(app_ver, "01.12")))
+				{
+					// 60 FPS
+					write_bytes(app_pid, NO_ASLR(0x015dcc1f), "be00000000");
+					write_bytes(app_pid, NO_ASLR(0x012517d1), "c744202800007042");
+					write_bytes(app_pid, NO_ASLR(0x012517d9), "c644205201");
+					write_bytes(app_pid, NO_ASLR(0x015dcc5f), "b800000000");
+					printf_notification("%s (%s): 60 FPS Patched!", app_id, app_ver);
+				}
+				else if ((startsWith(app_id, "CUSA18471") ||
+						  startsWith(app_id, "CUSA18742") ||
+						  startsWith(app_id, "CUSA18774") ||
+						  startsWith(app_id, "CUSA19072")) &&
+						 (startsWith(app_ver, "01.03")))
+				{
+					DoPatchNier103(app_pid, text_base);
+				}
+				else if (((startsWith(app_id, "CUSA02085") ||
+						   startsWith(app_id, "CUSA02092")) &&
+						  (startsWith(app_ver, "01.12"))) ||
+						 (startsWith(app_id, "CUSA04701") && startsWith(app_ver, "01.11")))
+				{
+					DoPatchDoom_112(app_pid, text_base);
+				}
+				else if ((startsWith(app_id, "CUSA10866") ||
+						  startsWith(app_id, "CUSA10851")) &&
+						 (startsWith(app_ver, "01.03")))
+				{
+					DoPatchBPR_103(app_pid, text_base);
 				}
 			}
-			else if (text_base && !g_foundApp && (startsWith(app_id, "PPSA")))
+
+			// multiple selfs
+			// this thread wait model is stinky
+			// big2
+			if ((startsWith(app_id, "CUSA01399") ||
+				 startsWith(app_id, "CUSA02320") ||
+				 startsWith(app_id, "CUSA02343") ||
+				 startsWith(app_id, "CUSA02344") ||
+				 startsWith(app_id, "CUSA02826")))
 			{
-				char app_ver[APP_VER_SIZE]{};		// `contentVersion`
-				char master_ver[MASTER_VER_SIZE]{}; // `masterVersion`
-				char content_id[CONTENT_ID_SIZE]{}; // `contentId`
-				int32_t ret = get_app_info(app_id, app_ver, master_ver, content_id, PS5_APP);
-				if (ret != 0)
-				{
-					// something went wrong
-					printf_notification("get_app_info(%s) failed! %d", app_id, ret);
-					continue;
-				}
-				else if (ret == 0)
-				{
-					g_foundApp = true;
-					target_running_pid = app_pid;
-				}
-				SuspendApp(app_pid);
-				// eboot.bin games
-				if (startsWith(process_name_c_str, "eboot.bin"))
-				{
-					if ((startsWith(app_id, "PPSA01339") ||
-						 startsWith(app_id, "PPSA01340") ||
-						 startsWith(app_id, "PPSA01341") ||
-						 startsWith(app_id, "PPSA01342")))
-					{
-						if (startsWith(app_ver, "01.000.000"))
-						{
-							DoPatch_DemonSouls(app_pid, text_base, 0x100);
-						}
-						else if (startsWith(app_ver, "01.004.000"))
-						{
-							DoPatch_DemonSouls(app_pid, text_base, 0x104);
-						}
-					}
-				}
-				if ((startsWith(app_id, "PPSA05684") ||
-					 startsWith(app_id, "PPSA05389") ||
-					 startsWith(app_id, "PPSA05686") ||
-					 startsWith(app_id, "PPSA05685")) &&
-					(startsWith(app_ver, "01.000.000")))
+				if (startsWith(app_ver, "01.00"))
 				{
 					if (startsWith(process_name_c_str, "eboot.bin"))
 					{
-						DoPatch_Big4R_100(app_pid, text_base, 1);
-						printf_notification("%s (%s): Debug Menu Patched!", app_id, app_ver);
+						DoPatch_BigCollection(app_pid, text_base, (0x100 << 1));
 					}
-					// tll big4r
-					else if (startsWith(process_name_c_str, "tllr-boot.bin"))
+					else if (startsWith(process_name_c_str, "big2-ps4_Shipping.elf"))
 					{
-						DoPatch_Big4R_100(app_pid, text_base, 2);
-						printf_notification("%s (%s): Debug Menu Patched!", app_id, process_name_c_str);
+						DoPatch_BigCollection(app_pid, text_base, (0x100 << 2));
+					}
+					// big3
+					else if (startsWith(process_name_c_str, "big3-ps4_Shipping.elf"))
+					{
+						DoPatch_BigCollection(app_pid, text_base, (0x100 << 3));
 					}
 				}
+				else if (startsWith(app_ver, "01.02"))
+				{
+					if (startsWith(process_name_c_str, "eboot.bin"))
+					{
+						DoPatch_BigCollection(app_pid, text_base, (0x102 << 1));
+					}
+					else if (startsWith(process_name_c_str, "big2-ps4_Shipping.elf"))
+					{
+						DoPatch_BigCollection(app_pid, text_base, (0x102 << 2));
+					}
+					// big3
+					else if (startsWith(process_name_c_str, "big3-ps4_Shipping.elf"))
+					{
+						DoPatch_BigCollection(app_pid, text_base, (0x102 << 3));
+					}
+				}
+			}
+			int32_t fliprate_game_found = false;
+			cheat_log("XML parse for %s", app_id);
+			if (Xml_parseTitleID(app_id))
+			{
+				printf_notification("Title ID found in universal fliprate list:\n%s", app_id);
+				cheat_log("Flipped %s", app_id);
+				ResumeApp(app_pid);
+				patch_SetFlipRate(*executable, app_pid);
+				fliprate_game_found = true;
+				break;
+			}
+			if (!fliprate_game_found)
+			{
 				ResumeApp(app_pid);
 				if (g_UniversalFlipRatePatch)
 				{
@@ -826,10 +862,68 @@ void *GamePatch_Thread(void *unused)
 				}
 			}
 		}
-		if (target_running_pid > 0 && !isAlive(target_running_pid))
+		else if (text_base && !g_foundApp && (startsWith(app_id, "PPSA")))
 		{
-			target_running_pid = -1;
-			g_foundApp = false;
+			char app_ver[APP_VER_SIZE]{};		// `contentVersion`
+			char master_ver[MASTER_VER_SIZE]{}; // `masterVersion`
+			char content_id[CONTENT_ID_SIZE]{}; // `contentId`
+			int32_t ret = get_app_info(app_id, app_ver, master_ver, content_id, PS5_APP);
+			if (ret != 0)
+			{
+				// something went wrong
+				printf_notification("get_app_info(%s) failed! %d", app_id, ret);
+				continue;
+			}
+			else if (ret == 0)
+			{
+				g_foundApp = true;
+				target_running_pid = app_pid;
+			}
+			SuspendApp(app_pid);
+			// eboot.bin games
+			if (startsWith(process_name_c_str, "eboot.bin"))
+			{
+				if ((startsWith(app_id, "PPSA01339") ||
+					 startsWith(app_id, "PPSA01340") ||
+					 startsWith(app_id, "PPSA01341") ||
+					 startsWith(app_id, "PPSA01342")))
+				{
+					if (startsWith(app_ver, "01.000.000"))
+					{
+						cheat_log("patching %s, daemon souls 01.000.000", app_id);
+						DoPatch_DemonSouls(app_pid, text_base, 0x100);
+					}
+					else if (startsWith(app_ver, "01.004.000"))
+					{
+						cheat_log("patching %s, daemon souls 01.004.000", app_id);
+						DoPatch_DemonSouls(app_pid, text_base, 0x104);
+					}
+					cheat_log("unknown DS version %d", app_ver);
+				}
+			}
+			if ((startsWith(app_id, "PPSA05684") ||
+				 startsWith(app_id, "PPSA05389") ||
+				 startsWith(app_id, "PPSA05686") ||
+				 startsWith(app_id, "PPSA05685")) &&
+				(startsWith(app_ver, "01.000.000")))
+			{
+				if (startsWith(process_name_c_str, "eboot.bin"))
+				{
+					DoPatch_Big4R_100(app_pid, text_base, 1);
+					printf_notification("%s (%s): Debug Menu Patched!", app_id, app_ver);
+				}
+				// tll big4r
+				else if (startsWith(process_name_c_str, "tllr-boot.bin"))
+				{
+					DoPatch_Big4R_100(app_pid, text_base, 2);
+					printf_notification("%s (%s): Debug Menu Patched!", app_id, process_name_c_str);
+				}
+			}
+			ResumeApp(app_pid);
+			if (g_UniversalFlipRatePatch)
+			{
+				patch_SetFlipRate(*executable, app_pid);
+			}
 		}
 	}
 
@@ -853,11 +947,10 @@ void *GamePatch_Thread(void *unused)
 #undef MASTER_VER_SIZE
 #undef CONTENT_ID_SIZE
 
-static void TestCallback(void *args) {
-	(void) args;
+static void TestCallback(void *args)
+{
+	(void)args;
 }
 
-static constexpr __attribute__ ((used)) TitleIdMap TITLEID_HANDLERS{{
-	{TestCallback, "BREW00000"_tid},
-	{TestCallback, {"BREW00001"}}
-}};
+static constexpr __attribute__((used)) TitleIdMap TITLEID_HANDLERS{{{TestCallback, "BREW00000"_tid},
+																	{TestCallback, {"BREW00001"}}}};

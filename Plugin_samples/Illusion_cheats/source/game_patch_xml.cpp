@@ -4,7 +4,7 @@
 
 #include "game_patch_memory.hpp"
 #include "notify.hpp"
-
+void cheat_log(const char *fmt, ...);
 // Include the `game_patch_fliprate_list.xml` as a symbol
 __asm__(
 	".intel_syntax noprefix\n"
@@ -44,7 +44,7 @@ int Xml_parseTitleID(const char *titleId)
 	char *buffer = NULL;
 	uint64_t length = 0;
 	FILE *f = fopen(XML_PATH_LIST, "rb");
-	printf("File: " XML_PATH_LIST " exist at 0x%p\n", f);
+	cheat_log("File: " XML_PATH_LIST " exist at 0x%p\n", f);
 	if (f)
 	{
 		fseek(f, 0, SEEK_END);
@@ -54,34 +54,41 @@ int Xml_parseTitleID(const char *titleId)
 		if (buffer)
 		{
 			fread(buffer, 1, length, f);
-			printf("Memory at 0x%p\n", buffer);
+			cheat_log("Memory at 0x%p\n", buffer);
 		}
 		fclose(f);
 	}
-	mxml_node_t *tree = mxmlLoadString(NULL, buffer, MXML_OPAQUE_CALLBACK);
 
+	cheat_log("loading string");
+	mxml_node_t *tree = mxmlLoadString(NULL, buffer, MXML_OPAQUE_CALLBACK);
 	if (tree == NULL)
 	{
+		cheat_log("Couldn't load XML file.\n");
 		return 0;
 	}
 
+	cheat_log("Finding TitleID\n");
+
 	mxml_node_t *titleIDNode = mxmlFindElement(tree, tree, "TitleID", NULL, NULL, MXML_DESCEND);
+	cheat_log("TitleID: 0x%p\n", titleIDNode);
 
 	int found_id = 0;
 	if (titleIDNode != NULL)
 	{
+		cheat_log("TitleID found\n");
 		mxml_node_t *idNode = mxmlFindElement(titleIDNode, tree, "ID", NULL, NULL, MXML_DESCEND);
 
 		while (idNode != NULL)
 		{
+			//cheat_log("ID: 0x%p\n", idNode);
 			const char *idValue = mxmlGetOpaque(idNode);
 			if (idValue != NULL)
 			{
-				// printf("TitleID: %s\n", idValue);
+				cheat_log("TitleID: %s\n", idValue);
 				if (strncmp(titleId, idValue, __builtin_strlen("CUSAxxxxx")) == 0)
 				{
 					found_id = 1;
-					printf("%s match !! found_id=0x%08x\n", titleId, found_id);
+					cheat_log("%s match !! found_id=0x%08x\n", titleId, found_id);
 					break;
 				}
 			}
@@ -97,6 +104,7 @@ int Xml_parseTitleID(const char *titleId)
 	{
 		mxmlDelete(tree);
 	}
+	cheat_log("Returning %d\n", found_id);
 	return found_id;
 }
 
@@ -170,7 +178,7 @@ int makeDefaultXml_Cfg()
 	{
 		FILE *new_f = fopen(XML_PATH, "w");
 		// Print the default data to TTY
-		printf("%s\n", DefaultCfgData);
+		cheat_log("%s\n", DefaultCfgData);
 		fputs(DefaultCfgData, new_f);
 		fflush(new_f);
 		fclose(new_f);
@@ -187,7 +195,7 @@ int parseXML(const char *xml_key)
 	FILE *f = fopen(XML_PATH, "rb");
 	int ret = 0;
 
-	printf("File " XML_PATH " exist at 0x%p\n", f);
+	cheat_log("File " XML_PATH " exist at 0x%p\n", f);
 	if (f)
 	{
 		fseek(f, 0, SEEK_END);
@@ -197,29 +205,33 @@ int parseXML(const char *xml_key)
 		if (buffer)
 		{
 			fread(buffer, 1, length, f);
-			printf("Memory at 0x%p\n", buffer);
+			cheat_log("Memory at 0x%p\n", buffer);
 		}
 		fclose(f);
 	}
 	else
 	{
+		cheat_log("-2");
 		return -2;
 	}
 	mxml_node_t *tree = mxmlLoadString(NULL, buffer, MXML_OPAQUE_CALLBACK);
 	if (tree == NULL)
 	{
-		printf("Failed to parse XML.\n");
+		cheat_log("Failed to parse XML.\n");
 		return 0;
 	}
+
+	cheat_log("Parsing %s\n", xml_key);
 
 	mxml_node_t *xml_element = mxmlFindElement(tree, tree, xml_key, NULL, NULL, MXML_DESCEND);
 	if (xml_element)
 	{
+		cheat_log("Found %s\n", xml_key);
 		const char *value = mxmlGetOpaque(xml_element);
 		if (value)
 		{
 			ret = simple_get_bool(value);
-			printf("%s: (%s) 0x%08x\n", xml_key, value, ret);
+			cheat_log("%s: (%s) 0x%08x\n", xml_key, value, ret);
 		}
 	}
 	if (buffer)
@@ -230,5 +242,6 @@ int parseXML(const char *xml_key)
 	{
 		mxmlDelete(tree);
 	}
+	cheat_log("Returning %d\n", ret);
 	return ret;
 }

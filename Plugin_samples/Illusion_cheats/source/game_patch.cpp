@@ -4,7 +4,7 @@
 #include "game_patch_xml_cfg.hpp"
 #include "print.hpp"
 #include "notify.hpp"
-
+void cheat_log(const char *fmt, ...);
 int32_t g_isPatch120Hz = 0;
 
 void DoPatch_Bloodborne109(pid_t app_pid, uint64_t text_base)
@@ -16,8 +16,10 @@ void DoPatch_Bloodborne109(pid_t app_pid, uint64_t text_base)
 	// Patch DLC Save Requirement
 	write_bytes(app_pid, NO_ASLR(0x023b67b3), "49c7460801010101"); // <!-- with `SPDLCMESSENGER00` [0] +`SPDLCMESSENGER01` [1] +`SPEXPANSIONDLC03` [3] but [2] is 0 but lets unlock it anyways -->
 	// 60 FPS by Lance
+	cheat_log("parsing XML for BB 109 00");
 	if (parseXML(BB_60FPSKey))
 	{
+		cheat_log("Patching Bloodborne 60 FPS\n");
 		write_bytes(app_pid, NO_ASLR(0x00fbc40f), "eb1d");
 		write_bytes(app_pid, NO_ASLR(0x013d2e16), "eb19");
 		write_bytes(app_pid, NO_ASLR(0x013d2e18), "4156");
@@ -153,6 +155,7 @@ void DoPatch_Bloodborne109(pid_t app_pid, uint64_t text_base)
 		write_bytes(app_pid, NO_ASLR(0x02fbf178), "4831c0c3");
 		printf_notification("Bloodborne: 60 FPS Patched");
 	}
+	cheat_log("parsing XML for BB 109 done\n");
 	// no motion blur
 	if (parseXML(BB_MBKey))
 	{
@@ -742,12 +745,14 @@ void DoPatch_Bloodborne109(pid_t app_pid, uint64_t text_base)
 	// 1280x720 Resolution
 	if (parseXML(BB_1280_720))
 	{
+		cheat_log("Bloodborne: Debug Camera Patched");
 		write_bytes32(app_pid, NO_ASLR(0x055289f8), 1280);
 		write_bytes32(app_pid, NO_ASLR(0x055289fc), 720);
 		printf_notification("Bloodborne: 720p Patched");
 	}
 	if (parseXML(BB_Vsync))
 	{
+		cheat_log("Bloodborne: Vsync Patched");
 		write_bytes(app_pid, NO_ASLR(0x025b3271), "4831f6");
 		write_bytes(app_pid, NO_ASLR(0x0243487e), "41c74424186f12833a");
 		printf_notification("Bloodborne: No Vsync Patched");
@@ -2347,6 +2352,7 @@ void DoPatch_DemonSouls(pid_t app_pid, uint64_t text_base, uint32_t idx)
 		// 120Hz
 		if (g_isPatch120Hz)
 		{
+			cheat_log("Applying 120Hz Patch");
 			write_bytes(app_pid, BASE_ASLR_OFFSET(0x35b4c000, 0x3671908c), "e9b91c0501");
 			write_bytes(app_pid, BASE_ASLR_OFFSET(0x35b4c000, 0x3776ad4a), "488d05a7501a01");
 			write_bytes(app_pid, BASE_ASLR_OFFSET(0x35b4c000, 0x3776ad51), "488b00");
@@ -2371,6 +2377,7 @@ void DoPatch_DemonSouls(pid_t app_pid, uint64_t text_base, uint32_t idx)
 			write_bytes(app_pid, BASE_ASLR_OFFSET(0x35b4c000, 0x3776ad97), "e9f5e2fafe");
 			printf_notification("Applied 120Hz Patch");
 		}
+		cheat_log("parsing xml file");
 		if (parseXML(DemonSouls_UnlockFPS))
 		{
 			// use vsync
@@ -2382,6 +2389,7 @@ void DoPatch_DemonSouls(pid_t app_pid, uint64_t text_base, uint32_t idx)
 			write_bytes(app_pid, BASE_ASLR(0x023eddb2), "ff2558609d00");
 			printf_notification("Applied 60 FPS");
 		}
+		cheat_log("parsing xml file 2");
 		if (parseXML(DemonSouls_DebugMenu))
 		{
 			write_bytes(app_pid, BASE_ASLR_OFFSET(0x35b4c000, 0x35b4c0bf), "cc");
@@ -2398,8 +2406,10 @@ void DoPatch_DemonSouls(pid_t app_pid, uint64_t text_base, uint32_t idx)
 	}
 	case 0x104:
 	{
+		cheat_log("parsing xml file FOR 104");
 		if (parseXML(DemonSouls104_DebugMenu))
 		{
+			cheat_log("Applying Debug menu for XML");
 			write_bytes(app_pid, BASE_ASLR_OFFSET(0x584a8000, 0x58cfbb49), "e937010000");
 			// Preserve `bpe::CommandLine::DispatchCmds`
 			write_bytes(app_pid, BASE_ASLR_OFFSET(0x584a8000, 0x58cfbc85), "e8b676ffff");
@@ -2411,6 +2421,7 @@ void DoPatch_DemonSouls(pid_t app_pid, uint64_t text_base, uint32_t idx)
 		break;
 	}
 	}
+	cheat_log("END OF ds PATCHING FUNC");
 }
 
 void DoPatch_DriveClub_128(pid_t app_pid, uint64_t text_base)

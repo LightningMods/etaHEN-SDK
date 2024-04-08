@@ -52,9 +52,9 @@ target_compile_options(${PROJECT_NAME} PUBLIC
 )
 
 message("========== build: ${PROJECT_NAME} ==========")
-
 set(D_SRC ${D_CWD}/source)
-file(GLOB SrcFiles ${D_SRC}/*.c ${D_SRC}/*.cpp ${D_SRC}/*.h ${D_SRC}/*.hpp ${D_SRC}/*.s ${D_SRC}/../../../extern/pfd_sfo_tools/sfopatcher/src/*.c ${D_SRC}/../../../extern/pfd_sfo_tools/sfopatcher/src/*.h ${D_SRC}/../../../extern/tiny-json/*.c ${D_SRC}/../../../extern/tiny-json/*.h ${D_SRC}/../../../extern/mxml/*.c ${D_SRC}/../../../extern/mxml/*.h)
+include_directories	(SYSTEM "${D_SRC}/../../../libelfloader/source/")
+file(GLOB SrcFiles ${D_SRC}/*.c ${D_SRC}/*.cpp ${D_SRC}/*.h ${D_SRC}/*.hpp ${D_SRC}/*.s ${D_SRC}/../../../extern/pfd_sfo_tools/sfopatcher/src/*.c ${D_SRC}/../../libelfloader/source/ ${D_SRC}/../../../extern/pfd_sfo_tools/sfopatcher/src/*.h ${D_SRC}/../../../extern/tiny-json/*.c ${D_SRC}/../../../extern/tiny-json/*.h ${D_SRC}/../../../extern/mxml/*.c ${D_SRC}/../../../extern/mxml/*.h)
 
 set(CMAKE_C_FLAGS "--target=x86_64-freebsd-pc-elf -march=znver2 -gfull -gdwarf-2 -O3")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c17 -Wall -Wextra -Werror -pedantic-errors")
@@ -73,6 +73,6 @@ target_sources(${PROJECT_NAME} PRIVATE ${SrcFiles})
 target_include_directories(${PROJECT_NAME} PRIVATE "${D_CWD}/../include")
 target_include_directories(${PROJECT_NAME} PRIVATE "${D_CWD}/../shared/include")
 target_link_directories	(${PROJECT_NAME} PUBLIC "${PROJECT_ROOT}/lib")
-target_link_libraries	(${PROJECT_NAME} PUBLIC hijacker SceLibcInternal SceSystemService SceNet SceSysmodule SceUserService SceNetCtl SceSysCore ScePad SceVideoOut kernel_sys SceAppInstUtil)
+target_link_libraries	(${PROJECT_NAME} PUBLIC hijacker SceLibcInternal SceSystemService SceNet SceSysmodule SceUserService SceNetCtl SceSysCore ScePad SceVideoOut kernel_sys SceAppInstUtil elfloader)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=lld -flto=full -Xlinker -pie -Xlinker -zmax-page-size=16384 -Xlinker -zcommon-page-size=16384 -Xlinker -T ${D_CWD}/linker.x -Wl,--build-id=none -Wl,-z,norelro")

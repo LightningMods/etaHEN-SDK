@@ -36,7 +36,8 @@ void AbortServer::run(TcpSocket &sock)
 	puts("abort signal received");
 	sock.close();
 }
-
+extern "C" int sceSystemServiceKillApp(int, int, int, int);
+extern "C" int sceSystemServiceGetAppId(const char *);
 #ifdef RESTMODE
 #define BUILD_MSG "Rest Mode Build"
 #else
@@ -46,8 +47,8 @@ void AbortServer::run(TcpSocket &sock)
 void sig_handler(int signo)
 {
 	notify("Cheats plugin has crashed with signal %d", signo);
-	//printBacktraceForCrash();
-	exit(1);
+	printBacktraceForCrash();
+    printf("ItemzLocalKillApp(sceSystemServiceGetAppId(ILLU00000)) returned %i\n", sceSystemServiceKillApp(sceSystemServiceGetAppId("ILLU00000"), -1, 0, 0));
 }
 int main()
 {
@@ -57,7 +58,7 @@ int main()
 	sigemptyset(&new_SIG_action.sa_mask);
 	new_SIG_action.sa_flags = 0;
 
-	for (int i = 0; i < 12; i++)
+	for (int i = 0; i < 20; i++)
 		sigaction(i, &new_SIG_action, NULL);
 
 	printf_notification("libhijacker daemon started successfully.\nBuild mode: (" BUILD_MSG ")\n"

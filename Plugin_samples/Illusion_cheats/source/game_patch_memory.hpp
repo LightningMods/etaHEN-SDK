@@ -19,7 +19,9 @@ enum write_flag : uint32_t
 
 void dump_bytes_vm(pid_t pid, uint64_t addr, size_t bytes_size);
 
+__attribute__((noinline)) uint8_t* hexstrtochar2(const char* hexstr, size_t* size);
 void write_bytes(pid_t pid, uint64_t addr, const char *hexString, enum write_flag special_flag = no_flag);
+void write_bytes(pid_t pid, uint64_t addr, void* bytes_data, size_t bytes_size);
 void write_bytes32(pid_t pid, uint64_t addr, const uint32_t val);
 void write_bytes64(pid_t pid, uint64_t addr, const size_t val);
 void write_float32(pid_t pid, uint64_t addr, const float val);

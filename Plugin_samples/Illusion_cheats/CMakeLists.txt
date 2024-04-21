@@ -65,7 +65,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIE -flto=full")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -DDEBUG -gfull -gdwarf-2 -O0 -pedantic -pedantic-errors")
 add_custom_command(TARGET ${basename}
                    POST_BUILD
-                   COMMAND python "${CMAKE_SOURCE_DIR}/lib/make_plugin.py" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${basename}.elf" "${PLUGIN_TITLE_ID}" "${PLUGIN_VERSION}"
+                   COMMAND python3 "${CMAKE_SOURCE_DIR}/lib/make_plugin.py" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${basename}.elf" "${PLUGIN_TITLE_ID}" "${PLUGIN_VERSION}"
                    COMMENT "Finishing Plugin"
                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 

@@ -212,7 +212,11 @@ int simple_get_bool(const char* val)
 const char* GetXMLAttr(mxml_node_t* node, const char* name)
 {
 	const char* AttrData = mxmlElementGetAttr(node, name);
-	if (AttrData == NULL) AttrData = "\0";
+	if (AttrData == NULL)
+	{
+		printf("XML Attribute: \"%s\" is empty\n", name);
+		AttrData = "\0";
+	}
 	return AttrData;
 }
 
@@ -562,15 +566,27 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 			char* settings_buffer = nullptr;
 			uint64_t settings_size = 0;
 			bool PRX_patch = false;
+			bool WantRelativeAddr = false;
+			uint64_t ImageBaseAddr = 0;
 			const char* TitleData = GetXMLAttr(node, "Title");
 			const char* NameData = GetXMLAttr(node, "Name");
 			const char* AppVerData = GetXMLAttr(node, "AppVer");
 			const char* AppElfData = GetXMLAttr(node, "AppElf");
+			const char* ImgBaseData = GetXMLAttr(node, "ImageBase");
 
 			cheat_log("Title: \"%s\"\n", TitleData);
 			cheat_log("Name: \"%s\"\n", NameData);
 			cheat_log("AppVer: \"%s\"\n", AppVerData);
 			cheat_log("AppElf: \"%s\"\n", AppElfData);
+			if (*ImgBaseData)
+			{
+				ImageBaseAddr = strtoull(ImgBaseData, NULL, 16);
+				WantRelativeAddr = ImageBaseAddr == 0 ? true : false;
+				cheat_log("ImageBase: \"%s\"\n", ImgBaseData);
+				cheat_log("ImageBase Parsed: \"0x%016llx\"\n", ImageBaseAddr);
+				cheat_log("WantRelativeAddr: \"%s\"\n", WantRelativeAddr ? "true" : "false");
+			}
+
 
 			uint64_t hashout = patch_hash_calc(TitleData, NameData, AppVerData, input_file, AppElfData);
 			char settings_path[MAX_PATH] = { 0 };
@@ -685,8 +701,22 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 					{
 						if (!PRX_patch && !use_mask)
 						{
+							uint64_t xml_addr = addr_real;
+							uint64_t PatchBaseAddresss = (ImageBaseAddr == 0 ? NO_ASLR_ADDR_PS4 : ImageBaseAddr);
 							// previous self, eboot patches were made with no aslr addresses
-							addr_real = info->image_base + (addr_real - NO_ASLR_ADDR_PS4);
+							if (WantRelativeAddr)
+							{
+								addr_real = info->image_base + addr_real;
+							}
+							else
+							{
+								addr_real = info->image_base + (addr_real - PatchBaseAddresss);
+							}
+							cheat_log("Patching address: 0x%016llx", addr_real);
+							cheat_log("Data from XML: 0x%016llx", xml_addr);
+							cheat_log("Process Image Base: 0x%016llx", info->image_base);
+							cheat_log("Patch Image Base: 0x%016llx", PatchBaseAddresss);
+							cheat_log("Process ID: %i", info->image_pid);
 						}
 						else if (PRX_patch && !use_mask)
 						{

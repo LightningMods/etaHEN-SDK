@@ -50,6 +50,9 @@ void sig_handler(int signo)
 	printBacktraceForCrash();
     printf("ItemzLocalKillApp(sceSystemServiceGetAppId(ILLU00000)) returned %i\n", sceSystemServiceKillApp(sceSystemServiceGetAppId("ILLU00000"), -1, 0, 0));
 }
+
+#include "game_patch_xml_cfg.hpp"
+
 int main()
 {
 	puts("daemon entered");
@@ -60,6 +63,11 @@ int main()
 
 	for (int i = 0; i < 20; i++)
 		sigaction(i, &new_SIG_action, NULL);
+
+	mkdir(BASE_ETAHEN_PATCH_PATH, 0777);
+	mkdir(BASE_ETAHEN_PATCH_SETTINGS_PATH, 0777);
+	mkdir(BASE_ETAHEN_PATCH_DATA_PATH_PS4, 0777);
+	mkdir(BASE_ETAHEN_PATCH_DATA_PATH_PS5, 0777);
 
 	printf_notification("libhijacker daemon started successfully.\nBuild mode: (" BUILD_MSG ")\n"
 						"Original project:\nhttps://github.com/astrelsky/libhijacker");

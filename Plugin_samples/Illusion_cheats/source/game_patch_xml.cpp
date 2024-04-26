@@ -149,7 +149,7 @@ int Xml_parseTitleID_FliprateList(const char* titleId)
 	int found_id = 0;
 	if (titleIDNode != NULL)
 	{
-		cheat_log("TitleID found\n");
+		//cheat_log("TitleID found\n");
 		mxml_node_t* idNode = mxmlFindElement(titleIDNode, tree, "ID", NULL, NULL, MXML_DESCEND);
 
 		while (idNode != NULL)
@@ -178,7 +178,7 @@ int Xml_parseTitleID_FliprateList(const char* titleId)
 	{
 		mxmlDelete(tree);
 	}
-	cheat_log("Returning %d", found_id);
+	//cheat_log("Returning %d", found_id);
 	return found_id;
 }
 
@@ -220,7 +220,6 @@ const char* GetXMLAttr(mxml_node_t* node, const char* name)
 	return AttrData;
 }
 
-
 // http://www.cse.yorku.ca/~oz/hash.html
 constexpr uint64_t djb2_hash(const char* str)
 {
@@ -247,10 +246,6 @@ uint64_t patch_hash_calc(const char* title, const char* name, const char* app_ve
 }
 
 #define MAX_PATH 260
-
-//char g_game_elf[] = "eboot.bin";
-//char g_game_ver[] = "01.00";
-//uint64_t g_module_base = 0;
 #define NO_ASLR_ADDR_PS4 0x00400000
 
 char* unescape(const char* s)
@@ -481,9 +476,9 @@ void patch_data1(int pid, const char* patch_type_str, uint64_t addr, const char*
 		if (!ShowNotifyOnce)
 		{
 			printf_notification("patchCall not supported yet");
-			cheat_log("patchCall not supported yet");
 			ShowNotifyOnce = true;
 		}
+		cheat_log("patchCall not supported yet");
 		/*
 		u8 call_bytes[5] = { 0 };
 		memcpy(call_bytes, (void*)addr, sizeof(call_bytes));
@@ -536,10 +531,10 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 		break;
 	}
 	case PS5_APP:
+	{
 		path_len = snprintf(input_file, sizeof(input_file), BASE_ETAHEN_PATCH_DATA_PATH_PS5 "/%s.xml", info->titleID);
-		{
-			break;
-		}
+		break;
+	}
 	default:
 	{
 		cheat_log("Unknown app type %d", info->app_mode);
@@ -637,7 +632,6 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 					Line_node = mxmlFindElement(Line_node, Patchlist_node, "Line", NULL, NULL, MXML_DESCEND))
 				{
 					uint64_t addr_real = 0;
-
 					bool use_mask = false;
 					const char* gameType = GetXMLAttr(Line_node, "Type");
 					const char* gameAddr = GetXMLAttr(Line_node, "Address");
@@ -719,17 +713,18 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 							{
 								addr_real = info->image_base + (addr_real - PatchBaseAddresss);
 							}
-							cheat_log("Patching address: 0x%016llx", addr_real);
-							cheat_log("Data from XML: 0x%016llx", xml_addr);
-							cheat_log("Process Image Base: 0x%016llx", info->image_base);
-							cheat_log("Patch Image Base: 0x%016llx", PatchBaseAddresss);
+							cheat_log("Patching process address: 0x%016llx", addr_real);
 							cheat_log("Process ID: %i", info->image_pid);
+							cheat_log("Process Image Base: 0x%016llx", info->image_base);
+							cheat_log("XML Patch Address: 0x%016llx", xml_addr);
+							cheat_log("XML Patch Image Base: 0x%016llx", PatchBaseAddresss);
 						}
 						else if (PRX_patch && !use_mask)
 						{
 							addr_real = info->image_base + addr_real;
 						}
 						//patch_data1(gameType, addr_real, gameValue, jump_size, jump_addr);
+						// `mask_jump32` won't work yet
 						patch_data1(info->image_pid, gameType, addr_real, gameValue, 0, 0);
 						patch_lines++;
 					}

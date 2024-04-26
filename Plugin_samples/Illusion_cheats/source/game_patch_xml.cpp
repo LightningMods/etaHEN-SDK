@@ -321,6 +321,7 @@ bool hex_prefix(const char* str)
 void patch_data1(int pid, const char* patch_type_str, uint64_t addr, const char* value, uint32_t source_size, uint64_t jump_target)
 {
 	uint64_t patch_type = djb2_hash(patch_type_str);
+	static bool ShowNotifyOnce = false;
 	switch (patch_type)
 	{
 	case djb2_hash("byte"):
@@ -441,6 +442,7 @@ void patch_data1(int pid, const char* patch_type_str, uint64_t addr, const char*
 	}
 	case djb2_hash("mask_jump32"):
 	{
+		cheat_log("Warning: mask_jump32 not tested");
 		constexpr uint32_t MAX_PATTERN_LENGTH = 256;
 		if (source_size < 5)
 		{
@@ -476,7 +478,12 @@ void patch_data1(int pid, const char* patch_type_str, uint64_t addr, const char*
 	case djb2_hash("patchCall"):
 	case djb2_hash("mask_patchCall"):
 	{
-		cheat_log("patchCall not supported yet");
+		if (!ShowNotifyOnce)
+		{
+			printf_notification("patchCall not supported yet");
+			cheat_log("patchCall not supported yet");
+			ShowNotifyOnce = true;
+		}
 		/*
 		u8 call_bytes[5] = { 0 };
 		memcpy(call_bytes, (void*)addr, sizeof(call_bytes));

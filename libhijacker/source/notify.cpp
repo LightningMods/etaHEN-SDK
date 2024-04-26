@@ -12,12 +12,12 @@ void printf_notification(const char *fmt, ...)
 	// these dont do anything currently
 	// that or the structure has changed
 	// lets just copy messages for now
-	/*
+
 	noti_buffer.type = 0;
 	noti_buffer.unk3 = 0;
 	noti_buffer.use_icon_image_uri = 0;
 	noti_buffer.target_id = -1;
-	*/
+
 	// trim newline
 	if (noti_buffer.message[len - 1] == '\n')
 	{

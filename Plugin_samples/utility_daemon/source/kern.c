@@ -6,14 +6,12 @@
 
 #include <ps5/kernel.h>
 
-#include <ps5/payload_main.h>
 #include <stdint.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
 // NOLINTBEGIN(*)
 
-uintptr_t kernel_base;
 
 // Store necessary sockets/pipe for corruption.
 int _master_sock;
@@ -23,11 +21,6 @@ uint64_t _pipe_addr;
 
 extern size_t _write(int fd, const void *buf, size_t nbyte);
 extern size_t _read(int fd, void *buf, size_t nbyte);
-
-void payload_init(const struct payload_args *restrict args) {
-	kernel_base = args->kdata_base_addr;
-	kernel_init_rw(args->rwpair[0], args->rwpair[1], args->rwpipe, args->kpipe_addr);
-}
 
 // Arguments passed by way of entrypoint arguments.
 void kernel_init_rw(int master_sock, int victim_sock, int *rw_pipe, uint64_t pipe_addr)

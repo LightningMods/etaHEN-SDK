@@ -22,3 +22,4 @@ add_subdirectory(ELF_samples/list_files)
 
 add_subdirectory(Plugin_samples/utility_daemon)
 add_subdirectory(Plugin_samples/Illusion_cheats)
+add_subdirectory(Plugin_samples/PS5Debug)

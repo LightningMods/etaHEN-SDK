@@ -46,7 +46,23 @@ static void _fini(void) {
 }
 void* syscall_addr = NULL;
 int __kernel_init(const struct payload_args* args);
-
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlanguage-extension-token"
+asm(".intel_syntax noprefix\n"
+    ".global syscall\n"
+    ".type syscall @function\n"
+    "syscall:\n"
+    "  mov rax, rdi\n"
+    "  mov rdi, rsi\n"
+    "  mov rsi, rdx\n"
+    "  mov rdx, rcx\n"
+    "  mov r10, r8\n"
+    "  mov r8,  r9\n"
+    "  mov r9,  qword ptr [rsp + 8]\n"
+    "  jmp qword ptr [rip + syscall_addr]\n"
+    "  ret\n"
+    );
+#pragma clang diagnostic pop
 void _start(const struct payload_args *restrict args) {
 	int fd = open("/dev/console", O_WRONLY);
 	if (fd == -1) {

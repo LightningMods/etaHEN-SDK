@@ -149,7 +149,6 @@ int Xml_parseTitleID_FliprateList(const char* titleId)
 	int found_id = 0;
 	if (titleIDNode != NULL)
 	{
-		//cheat_log("TitleID found\n");
 		mxml_node_t* idNode = mxmlFindElement(titleIDNode, tree, "ID", NULL, NULL, MXML_DESCEND);
 
 		while (idNode != NULL)
@@ -178,7 +177,6 @@ int Xml_parseTitleID_FliprateList(const char* titleId)
 	{
 		mxmlDelete(tree);
 	}
-	//cheat_log("Returning %d", found_id);
 	return found_id;
 }
 
@@ -220,6 +218,8 @@ const char* GetXMLAttr(mxml_node_t* node, const char* name)
 	return AttrData;
 }
 
+#define MAX_PATH 260
+#define NO_ASLR_ADDR_PS4 0x00400000
 // http://www.cse.yorku.ca/~oz/hash.html
 constexpr uint64_t djb2_hash(const char* str)
 {
@@ -246,6 +246,10 @@ uint64_t patch_hash_calc(const char* title, const char* name, const char* app_ve
 }
 
 #define MAX_PATH 260
+
+//char g_game_elf[] = "eboot.bin";
+//char g_game_ver[] = "01.00";
+//uint64_t g_module_base = 0;
 #define NO_ASLR_ADDR_PS4 0x00400000
 
 char* unescape(const char* s)
@@ -540,7 +544,7 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 		cheat_log("Unknown app type %d", info->app_mode);
 		return 0;
 	}
-	}
+        }
 	int32_t res = Read_File(input_file, &patch_buffer, &patch_size, 0);
 
 	if (res)
@@ -557,6 +561,7 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 
 		if (!tree)
 		{
+			printf_notification("could not parse XML: %s", input_file);
 			cheat_log("XML: could not parse XML:\n%s\n", patch_buffer);
 			free(patch_buffer);
 			return 0;
@@ -568,13 +573,17 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 			char* settings_buffer = nullptr;
 			uint64_t settings_size = 0;
 			bool PRX_patch = false;
+
 			bool WantRelativeAddr = false;
 			uint64_t ImageBaseAddr = 0;
+
 			const char* TitleData = GetXMLAttr(node, "Title");
 			const char* NameData = GetXMLAttr(node, "Name");
 			const char* AppVerData = GetXMLAttr(node, "AppVer");
 			const char* AppElfData = GetXMLAttr(node, "AppElf");
+
 			const char* ImgBaseData = GetXMLAttr(node, "ImageBase");
+
 
 			cheat_log("Title: \"%s\"\n", TitleData);
 			cheat_log("Name: \"%s\"\n", NameData);
@@ -622,6 +631,7 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 				}
 				else if (ret_cmp)
 				{
+					printf_notification("Wrong App version\nGame version: %s\nExpected: %s", info->titleVersion, AppVerData);
 					cheat_log("App ver %s != %s\n", info->titleVersion, AppVerData);
 					cheat_log("Skipping patch entry\n");
 					continue;
@@ -718,6 +728,8 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 							cheat_log("Process Image Base: 0x%016llx", info->image_base);
 							cheat_log("XML Patch Address: 0x%016llx", xml_addr);
 							cheat_log("XML Patch Image Base: 0x%016llx", PatchBaseAddresss);
+							// previous self, eboot patches were made with no aslr addresses
+							addr_real = info->image_base + (addr_real - NO_ASLR_ADDR_PS4);
 						}
 						else if (PRX_patch && !use_mask)
 						{
@@ -729,6 +741,9 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 						patch_lines++;
 					}
 				}
+			}
+			else{
+				printf_notification("Required ELF not found for patching\nHas:%s\nExpected:%s", info->ImageSelf, AppElfData);
 			}
 			if (settings_buffer)
 			{

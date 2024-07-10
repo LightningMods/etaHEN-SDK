@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <util.hpp>
 
 #include "elf/elf.hpp"
 #include "dbg/dbg.hpp"
@@ -59,21 +60,31 @@ int32_t g_game_patch_thread_running = false;
 #define APP_VER_SIZE 16
 #define MASTER_VER_SIZE 16
 #define CONTENT_ID_SIZE 64
+#include <sys/stat.h>
+bool if_exists(const char *path)
+{
+	struct stat buffer;
+	return stat(path, &buffer) == 0;
+}
+extern "C"{
+	int sceSystemServiceGetAppTitleId(int app_id, char *title_id);
+	int _sceApplicationGetAppId(int pid, uint32_t *appid);
+}
+static int32_t get_app_info(const char *title_id, char *out_app_ver, char *out_master_ver, char *out_app_content_id, const AppType app_mode)
 
-static int32_t get_app_info(const char* title_id, char* out_app_ver, char* out_master_ver, char* out_app_content_id, const AppType app_mode)
 {
 	int32_t read_ret = 0;
+	String sfo_or_json_path;
 	switch (app_mode)
 	{
 	case PS4_APP: // CUSA Apps
 	{
-		char sfo_path[_MAX_PATH] = { 0 };
-		(void)snprintf(sfo_path, sizeof(sfo_path), "/system_data/priv/appmeta/%s/param.sfo", title_id);
-		sfo_context_t* sfo = sfo_alloc();
-		int32_t sfo_ret = sfo_read(sfo, sfo_path);
+		sfo_or_json_path = String("/system_data/priv/appmeta/") + title_id + "/param.sfo";
+		sfo_context_t *sfo = sfo_alloc();
+		int32_t sfo_ret = sfo_read(sfo, sfo_or_json_path.c_str());
 		if (sfo_ret == -1)
 		{
-			_printf("Failed to get app information from param.sfo!\nsfo_path: %s\n", sfo_path);
+			_printf("Failed to get app information from param.sfo!\nsfo_path: %s\n", sfo_or_json_path.c_str());
 		}
 		else
 		{
@@ -109,12 +120,21 @@ static int32_t get_app_info(const char* title_id, char* out_app_ver, char* out_m
 	}
 	case PS5_APP: // PPSA Apps
 	{
-		char sfo_path[_MAX_PATH] = { 0 };
-		(void)snprintf(sfo_path, sizeof(sfo_path), "/system_data/priv/appmeta/%s/param.json", title_id);
-		FILE* file = fopen(sfo_path, "r");
+		sfo_or_json_path = String("/system_data/priv/appmeta/") + title_id + "/param.json";
+		if (!if_exists(sfo_or_json_path.c_str()))
+		{
+			sfo_or_json_path = String("/system_ex/app/") + title_id + "/sce_sys/param.json";
+			if (!if_exists(sfo_or_json_path.c_str()))
+			{
+				//_printf("Failed to get app information from param.json!\nsfo_path: %s\n", sfo_path);
+				read_ret = -1;
+				break;
+			}
+		}
+		FILE *file = fopen(sfo_or_json_path.c_str(), "r");
 		if (!file)
 		{
-			_printf("Failed to get app information from param.sfo!\nsfo_path: %s\n", sfo_path);
+			_printf("Failed to get app information from param.sfo!\nsfo_path: %s\n", sfo_or_json_path.c_str());
 			read_ret = -1;
 			break;
 		}
@@ -370,6 +390,7 @@ int32_t patch_SetFlipRate(const Hijacker& hijacker, const pid_t pid)
 }
 #include <fcntl.h>
 
+
 void write_log(const char* text)
 {
 	int text_len = printf("%s", text);
@@ -397,8 +418,8 @@ void cheat_log(const char* fmt, ...)
 	}
 	else
 	{
-		strcat(msg,"\n");
-		write_log(msg);
+	     strcat(msg, "\n");
+	     write_log(msg);
 	}
 }
 
@@ -483,7 +504,7 @@ void* GamePatch_Thread(void* unused)
 		if (!Get_Running_App_TID(tid))
 		{
 			if (g_foundApp)
-				cheat_log("app is no longer running");
+			    cheat_log("app is no longer running");
 
 			usleep(1000);
 			target_running_pid = -1;
@@ -510,8 +531,7 @@ void* GamePatch_Thread(void* unused)
 				break;
 			}
 		}
-
-		cheat_log("found %s (%d) %s", tid.c_str(), app_pid, proc_name.c_str());
+		// cheat_log("found %s (%d) %s", tid.c_str(), app_pid, proc_name.c_str());
 		const UniquePtr<Hijacker> executable = Hijacker::getHijacker(app_pid);
 		uintptr_t text_base = 0;
 		uint64_t text_size = 0;
@@ -531,6 +551,7 @@ void* GamePatch_Thread(void* unused)
 			continue;
 		}
 		// const auto app = getProc(app_pid);
+
 		cheat_log("Checking %s (%d)", tid.c_str(), app_pid);
 		const char* app_id = tid.c_str();
 		const char* process_name_c_str = proc_name.c_str();

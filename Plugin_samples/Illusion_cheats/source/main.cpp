@@ -61,7 +61,7 @@ int main()
 	sigemptyset(&new_SIG_action.sa_mask);
 	new_SIG_action.sa_flags = 0;
 
-	for (int i = 0; i < 20; i++)
+	for (int i = 0; i < 12; i++)
 		sigaction(i, &new_SIG_action, NULL);
 
 	mkdir(BASE_ETAHEN_PATCH_PATH, 0777);
@@ -69,7 +69,9 @@ int main()
 	mkdir(BASE_ETAHEN_PATCH_DATA_PATH_PS4, 0777);
 	mkdir(BASE_ETAHEN_PATCH_DATA_PATH_PS5, 0777);
 
-	printf_notification("libhijacker daemon started successfully.\nBuild mode: (" BUILD_MSG ")\n"
+	unlink("/data/etaHEN/cheat_plugin.log");
+
+	printf_notification("The cheats plugin has started successfully.\nBuild mode: (" BUILD_MSG ")\n"
 						"Original project:\nhttps://github.com/astrelsky/libhijacker");
 	printf_notification("libhijacker - astrelsky\n"
 						"Fork with Game Patch Support - illusion\n"

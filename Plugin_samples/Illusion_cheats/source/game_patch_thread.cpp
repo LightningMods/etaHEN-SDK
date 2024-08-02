@@ -16,6 +16,42 @@
 
 #include "game_patch_xml.hpp"
 
+
+#include <fcntl.h>
+
+
+void write_log(const char* text)
+{
+	int text_len = printf("%s", text);
+	int fd = open("/data/etaHEN/cheat_plugin.log", O_WRONLY | O_CREAT | O_APPEND, 0777);
+	if (fd < 0)
+	{
+		return;
+	}
+	write(fd, text, text_len);
+	close(fd);
+}
+
+void cheat_log(const char* fmt, ...)
+{
+	char msg[0x1000]{};
+	va_list args;
+	va_start(args, fmt);
+	int msg_len = vsnprintf(msg, sizeof(msg), fmt, args);
+	va_end(args);
+
+	// Append newline at the end
+	if (msg[msg_len-1] == '\n')
+	{
+		write_log(msg);
+	}
+	else
+	{
+	     strcat(msg, "\n");
+	     write_log(msg);
+	}
+}
+
 extern "C"
 {
 #define ENTRYPOINT_OFFSET 0x70
@@ -121,12 +157,13 @@ static int32_t get_app_info(const char *title_id, char *out_app_ver, char *out_m
 	case PS5_APP: // PPSA Apps
 	{
 		sfo_or_json_path = String("/system_data/priv/appmeta/") + title_id + "/param.json";
+		cheat_log("sfo_or_json_path: %s", sfo_or_json_path.c_str());
 		if (!if_exists(sfo_or_json_path.c_str()))
 		{
 			sfo_or_json_path = String("/system_ex/app/") + title_id + "/sce_sys/param.json";
 			if (!if_exists(sfo_or_json_path.c_str()))
 			{
-				//_printf("Failed to get app information from param.json!\nsfo_path: %s\n", sfo_path);
+				cheat_log("Failed to get app information from param.json!\nsfo_path: %s", sfo_or_json_path.c_str());
 				read_ret = -1;
 				break;
 			}
@@ -134,7 +171,7 @@ static int32_t get_app_info(const char *title_id, char *out_app_ver, char *out_m
 		FILE *file = fopen(sfo_or_json_path.c_str(), "r");
 		if (!file)
 		{
-			_printf("Failed to get app information from param.sfo!\nsfo_path: %s\n", sfo_or_json_path.c_str());
+			cheat_log("Failed to get app information from param.sfo!\nsfo_path: %s", sfo_or_json_path.c_str());
 			read_ret = -1;
 			break;
 		}
@@ -158,7 +195,7 @@ static int32_t get_app_info(const char *title_id, char *out_app_ver, char *out_m
 		json_t const* my_json = json_create(json_data, pool, MAX_TOKENS);
 		if (!my_json)
 		{
-			_printf("Error json create %s\n", sfo_path);
+			cheat_log("Error json create %s", sfo_or_json_path.c_str());
 			read_ret = -1;
 			break;
 		}
@@ -169,7 +206,7 @@ static int32_t get_app_info(const char *title_id, char *out_app_ver, char *out_m
 
 		if (contentId && contentVersion && masterVersion)
 		{
-			_printf("\n"
+			cheat_log("\n"
 				"json_getPropertyValue:\n"
 				"contentId: %s (0x%p)\n"
 				"contentVersion: %s (0x%p)\n"
@@ -184,7 +221,7 @@ static int32_t get_app_info(const char *title_id, char *out_app_ver, char *out_m
 		}
 		else
 		{
-			_printf("Failed to retrieve %s values.\nContents of file:\n", sfo_path);
+			cheat_log("Failed to retrieve %s values.\nContents of file:", sfo_or_json_path.c_str());
 			puts(json_data);
 			read_ret = -1;
 		}
@@ -388,40 +425,7 @@ int32_t patch_SetFlipRate(const Hijacker& hijacker, const pid_t pid)
 	ResumeApp(pid);
 	return 0;
 }
-#include <fcntl.h>
 
-
-void write_log(const char* text)
-{
-	int text_len = printf("%s", text);
-	int fd = open("/data/etaHEN/cheat_plugin.log", O_WRONLY | O_CREAT | O_APPEND, 0777);
-	if (fd < 0)
-	{
-		return;
-	}
-	write(fd, text, text_len);
-	close(fd);
-}
-
-void cheat_log(const char* fmt, ...)
-{
-	char msg[0x1000]{};
-	va_list args;
-	va_start(args, fmt);
-	int msg_len = vsnprintf(msg, sizeof(msg), fmt, args);
-	va_end(args);
-
-	// Append newline at the end
-	if (msg[msg_len-1] == '\n')
-	{
-		write_log(msg);
-	}
-	else
-	{
-	     strcat(msg, "\n");
-	     write_log(msg);
-	}
-}
 
 #include "game_patch_xml.hpp"
 
@@ -552,7 +556,7 @@ void* GamePatch_Thread(void* unused)
 		}
 		// const auto app = getProc(app_pid);
 
-		cheat_log("Checking %s (%d)", tid.c_str(), app_pid);
+		//cheat_log("Checking %s (%d)", tid.c_str(), app_pid);
 		const char* app_id = tid.c_str();
 		const char* process_name_c_str = proc_name.c_str();
 		if (text_base && !g_foundApp &&

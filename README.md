@@ -13,10 +13,10 @@ etaHEN ELFs vs Plugins
 
 Plugins
 --------
-- Plugins can be loaded by etaHEN automatically from either `/mnt/usb<number>/etahen/plugins` or internally from `/data/etaHEN/plugins` when etaHEN is first ran or by [Itemzflow](https://pkg-zone.com/details/ITEM00001)
+- Plugins can be loaded by etaHEN automatically from either `/mnt/usb<number>/etaHEN/plugins` or internally from `/data/etaHEN/plugins` when etaHEN is first ran or by the etaHEN toolbox (HENV plugin or Itemzflow 1.07+ required)
 - Plugins located in the `etahen > plugins` folder on USB root are given priority over internally installed plugins in `/data/etaHEN/plugins`
-- Duplicate Plugins are ignored by etaHEN, etaHEN also checks if the plugin title id is already running
-- Plugins can be killed and ran by [Itemzflow](https://pkg-zone.com/details/ITEM00001)
+- Duplicate Plugins are ignored by etaHEN on startup (but are listed in the toolbox's plugin section), etaHEN also checks if the plugin title id is already running
+- Plugins can be killed and ran via etaHEN's toolbox
 - each plugin has its own title id and version defined in the plugins `CMakeLists.txt` file as follows
 ```
 set(PLUGIN_TITLE_ID "TEST00000")

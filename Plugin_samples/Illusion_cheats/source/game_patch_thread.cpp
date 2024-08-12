@@ -104,7 +104,7 @@ bool if_exists(const char *path)
 }
 extern "C"{
 	int sceSystemServiceGetAppTitleId(int app_id, char *title_id);
-	int _sceApplicationGetAppId(int pid, uint32_t *appid);
+	int _sceApplicationGetAppId(int pid, int *appid);
 }
 static int32_t get_app_info(const char *title_id, char *out_app_ver, char *out_master_ver, char *out_app_content_id, const AppType app_mode)
 
@@ -374,10 +374,10 @@ static void ResumeApp(pid_t pid)
 extern "C" int sceSystemServiceGetAppIdOfRunningBigApp();
 extern "C" int sceSystemServiceGetAppTitleId(int app_id, char* title_id);
 
-bool Get_Running_App_TID(String& title_id)
+bool Get_Running_App_TID(String& title_id, int & BigAppid)
 {
 	char tid[255];
-	int BigAppid = sceSystemServiceGetAppIdOfRunningBigApp();
+	BigAppid = sceSystemServiceGetAppIdOfRunningBigApp();
 	if (BigAppid < 0)
 	{
 		return false;
@@ -428,6 +428,7 @@ int32_t patch_SetFlipRate(const Hijacker& hijacker, const pid_t pid)
 
 
 #include "game_patch_xml.hpp"
+
 
 void* GamePatch_Thread(void* unused)
 {
@@ -498,6 +499,7 @@ void* GamePatch_Thread(void* unused)
 	while (g_game_patch_thread_running)
 	{
 		String tid;
+		int appid = 0;
 		if (!doPatchGames)
 		{
 			cheat_log("doPatchGames is false");
@@ -505,7 +507,7 @@ void* GamePatch_Thread(void* unused)
 			continue;
 		}
 
-		if (!Get_Running_App_TID(tid))
+		if (!Get_Running_App_TID(tid, appid))
 		{
 			if (g_foundApp)
 			    cheat_log("app is no longer running");
@@ -524,6 +526,7 @@ void* GamePatch_Thread(void* unused)
 
 		pid_t app_pid = 0;
 		String proc_name;
+#if 0
 		for (auto p : dbg::getProcesses())
 		{
 
@@ -535,6 +538,21 @@ void* GamePatch_Thread(void* unused)
 				break;
 			}
 		}
+#else
+		int bappid = 0;
+		for (size_t j = 0; j <= 9999; j++) {
+            if(_sceApplicationGetAppId(j, &bappid) < 0)
+                continue;
+
+            if(appid == bappid){
+				const auto app = getProc(app_pid);
+				if(!app) continue;
+				proc_name = dbg::ProcessInfo(app_pid).name();
+                app_pid = j;
+                break;
+            }
+        }
+#endif
 		// cheat_log("found %s (%d) %s", tid.c_str(), app_pid, proc_name.c_str());
 		const UniquePtr<Hijacker> executable = Hijacker::getHijacker(app_pid);
 		uintptr_t text_base = 0;

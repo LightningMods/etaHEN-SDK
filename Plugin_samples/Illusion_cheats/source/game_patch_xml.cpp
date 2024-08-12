@@ -743,7 +743,8 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 				}
 			}
 			else{
-				printf_notification("Required ELF not found for patching\nHas:%s\nExpected:%s", info->ImageSelf, AppElfData);
+				if(settings_buffer[0] != '1')
+			   	   printf_notification("Required ELF not found for patching\nHas:%s\nExpected:%s", info->ImageSelf, AppElfData);
 			}
 			if (settings_buffer)
 			{

@@ -96,4 +96,5 @@ static inline constexpr Nid strlen{"j4ViWNHEgww"};
 static inline constexpr Nid sceAppInstUtilInstallByPackage{"tDtjgaXYmuo"};
 
 static inline constexpr Nid sceKernelIsDevelopmentMode{"UtO0OHMCgmI"};
+static inline constexpr Nid scePadReadState("YndgXqQVV7c");
 }

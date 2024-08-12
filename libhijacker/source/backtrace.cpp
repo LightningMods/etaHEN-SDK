@@ -65,6 +65,8 @@ void crash_log(const char *fmt, ...) {
 		msg[sizeof(msg) - 1] = '\0';
 	}
 
+	
+
 	int fd = open("/data/etaHEN/plugin_crash.log", O_WRONLY | O_CREAT | O_APPEND, 0777);
 	if (fd < 0) {
 		return;

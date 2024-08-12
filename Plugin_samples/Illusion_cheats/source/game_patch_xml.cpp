@@ -729,7 +729,7 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 							cheat_log("XML Patch Address: 0x%016llx", xml_addr);
 							cheat_log("XML Patch Image Base: 0x%016llx", PatchBaseAddresss);
 							// previous self, eboot patches were made with no aslr addresses
-							addr_real = info->image_base + (addr_real - NO_ASLR_ADDR_PS4);
+							//addr_real = info->image_base + (addr_real - NO_ASLR_ADDR_PS4);
 						}
 						else if (PRX_patch && !use_mask)
 						{
@@ -743,8 +743,10 @@ int Xml_ParseGamePatch(GamePatchInfo* info)
 				}
 			}
 			else{
-				if(settings_buffer[0] != '1')
-			   	   printf_notification("Required ELF not found for patching\nHas:%s\nExpected:%s", info->ImageSelf, AppElfData);
+				if (settings_buffer[0] == '1' && strcmp(info->ImageSelf, AppElfData) != 0){
+			   	   printf_notification("Required ELF not found for patching\nHas: %s\nExpected: %s", info->ImageSelf, AppElfData);
+				   cheat_log("Required ELF not found for patching\nHas: %s\nExpected: %s", info->ImageSelf, AppElfData);
+				}
 			}
 			if (settings_buffer)
 			{

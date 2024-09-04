@@ -112,8 +112,8 @@ int main()
 #endif
 	pthread_join(game_patch_thread_id, nullptr);
 	puts("game patch thread finished");
-	pthread_join(game_patch_input_thread_id, nullptr);
-	puts("game patch input thread finished");
+	//pthread_join(game_patch_input_thread_id, nullptr);
+	//puts("game patch input thread finished");
 
 	printf_notification("daemon exit");
 

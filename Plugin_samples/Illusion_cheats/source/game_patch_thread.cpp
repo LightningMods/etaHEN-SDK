@@ -111,10 +111,11 @@ static int32_t get_app_info(const char *title_id, char *out_app_ver,
   {
     sfo_or_json_path =
         String("/system_data/priv/appmeta/") + title_id + "/param.sfo";
+    cheat_log("sfo: %s", sfo_or_json_path.c_str());
     sfo_context_t *sfo = sfo_alloc();
     int32_t sfo_ret = sfo_read(sfo, sfo_or_json_path.c_str());
     if (sfo_ret == -1) {
-      _printf("Failed to get app information from param.sfo!\nsfo_path: %s\n",
+      cheat_log("Failed to get app information from param.sfo!\nsfo_path: %s\n",
               sfo_or_json_path.c_str());
     } else {
       const char *app_app_ver =
@@ -124,7 +125,7 @@ static int32_t get_app_info(const char *title_id, char *out_app_ver,
       const char *app_content_id =
           (const char *)sfo_get_param_value(sfo, "CONTENT_ID");
       if (app_app_ver && app_master_ver && app_content_id) {
-        _printf("\n"
+        cheat_log("\n"
                 "sfo_read: 0x%08x\n"
                 "APP_VER: %s\n"
                 "VERSION: %s\n"
@@ -136,6 +137,7 @@ static int32_t get_app_info(const char *title_id, char *out_app_ver,
         read_ret = 0;
       } else {
         read_ret = -1;
+        cheat_log("failed to get sfo details???");
       }
     }
     if (sfo) {
